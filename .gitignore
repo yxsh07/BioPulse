@@ -1,0 +1,13 @@
+.tools/
+.graphify-venv/
+graphify-out/cache/
+target/
+node_modules/
+dist/
+.env
+*.log
+*.pid
+test-results/
+playwright-report/
+.idea/
+*.iml
