@@ -10,12 +10,15 @@ import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.UUID;
+import org.biopulse.dao.AnalyticsSnapshotDao;
 import org.biopulse.dao.MeasurementDao;
 import org.biopulse.dao.ProvenanceDao;
+import org.biopulse.dao.ReportDao;
 import org.biopulse.dao.WaveformDao;
 import org.biopulse.domain.MeasurementCode;
 import org.biopulse.domain.QualityFlag;
 import org.biopulse.domain.SourceType;
+import org.biopulse.dto.Requests.ReportCreate;
 import org.biopulse.jdbc.Sql;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +52,8 @@ class DatabaseIT {
   @Autowired WaveformDao waveforms;
   @Autowired ProvenanceDao provenance;
   @Autowired MeasurementDao measurements;
+  @Autowired ReportDao reports;
+  @Autowired AnalyticsSnapshotDao snapshots;
 
   @Test
   @Transactional
@@ -270,5 +275,43 @@ class DatabaseIT {
             .filter(m -> m.id() == id)
             .count());
     assertTrue(provenance.replayCatalog(10, 0).stream().noneMatch(r -> r.id() == recording));
+  }
+
+  @Test
+  @Transactional
+  void ownedReportArtifactAndSnapshotProvenance() {
+    Instant start = Instant.parse("2026-10-25T08:30:00Z");
+    Instant end = start.plusSeconds(60);
+    byte[] content = "synthetic report fixture".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    var report =
+        reports.createArtifact(
+            new ReportCreate(1L, null, start, end),
+            "admin@biopulse.local",
+            "application/octet-stream",
+            null,
+            content);
+    assertArrayEquals(
+        content,
+        reports
+            .artifactForActor(report.id(), "admin@biopulse.local")
+            .orElseThrow()
+            .binaryContent());
+    assertTrue(reports.artifactForActor(report.id(), "unknown@example.invalid").isEmpty());
+    long snapshot =
+        snapshots.create(
+            1,
+            start,
+            end,
+            "test-model-v1",
+            start.plusSeconds(1),
+            end.minusSeconds(1),
+            "{\"fixture\":true}");
+    assertEquals(
+        "test-model-v1",
+        snapshots.history(1, start, end, 10).stream()
+            .filter(s -> s.id() == snapshot)
+            .findFirst()
+            .orElseThrow()
+            .algorithmVersion());
   }
 }
