@@ -1,15 +1,158 @@
 package org.biopulse.service;
-import java.time.*;import java.util.*;import org.biopulse.dao.*;import org.biopulse.domain.*;import org.biopulse.dto.Requests.*;import org.biopulse.simulation.MeasurementSource;import org.biopulse.exception.ApiException;import org.biopulse.security.AccessPolicy;import org.biopulse.websocket.*;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
-@Service public class SimulationService {
- private final SimulationDao dao;private final RegistryDao registry;private final MeasurementDao measurements;private final MeasurementSource source;private final MeasurementIngestionService ingestion;private final MonitoringEventPublisher events;private final AccessPolicy access;
- public SimulationService(SimulationDao dao,RegistryDao registry,MeasurementDao measurements,MeasurementSource source,MeasurementIngestionService ingestion,MonitoringEventPublisher events,AccessPolicy access){this.dao=dao;this.registry=registry;this.measurements=measurements;this.source=source;this.ingestion=ingestion;this.events=events;this.access=access;}
- public SimulationSession get(long id){var s=dao.get(id,false).orElseThrow(()->ApiException.missing("Simulation"));access.admission(s.admissionId());return s;}
- @Transactional public SimulationSession create(SimulationCreate r){access.admission(r.admissionId());var rec=registry.recording(r.recordingId()).orElseThrow(()->ApiException.missing("Recording"));var src=registry.createSource(new SourceCreate("Replay "+rec.name(),SourceType.SIMULATION,"Recorded playback; original recording:"+rec.id()+"; original source:"+rec.sourceId()));var output=registry.createRecording(new RecordingCreate(src.id(),"Replay "+rec.name(),rec.startAt(),rec.endAt()));var s=dao.create(r.admissionId(),rec.id(),output.id(),r.speed(),rec.startAt());access.audit("CREATE_SIMULATION","session:"+s.id());return s;}
- @Transactional public SimulationSession transition(long id,String action){var s=dao.get(id,true).orElseThrow(()->ApiException.missing("Simulation"));access.admission(s.admissionId());SimulatorState next=switch(action){case "start"->{if(s.state()!=SimulatorState.CREATED)throw ApiException.conflict("Only CREATED sessions can start");yield SimulatorState.RUNNING;}case "pause"->{if(s.state()!=SimulatorState.RUNNING)throw ApiException.conflict("Only RUNNING sessions can pause");yield SimulatorState.PAUSED;}case "resume"->{if(s.state()!=SimulatorState.PAUSED)throw ApiException.conflict("Only PAUSED sessions can resume");yield SimulatorState.RUNNING;}case "stop"->{if(s.state()==SimulatorState.STOPPED||s.state()==SimulatorState.COMPLETED)throw ApiException.conflict("Session already terminal");yield SimulatorState.STOPPED;}default->throw ApiException.bad("Invalid simulation action");};dao.state(id,s.state(),next);var result=dao.get(id,false).orElseThrow();publish(result);access.audit("SIMULATION_"+action,"session:"+id);return result;}
- @Transactional public void tick(long id){var s=dao.get(id,true).orElseThrow();if(s.state()!=SimulatorState.RUNNING)return;var original=registry.recording(s.recordingId()).orElseThrow();var output=registry.recording(s.outputRecordingId()).orElseThrow();Instant to=s.cursorAt().plusNanos((long)(s.speed()*1e9));if(to.isAfter(original.endAt()))to=original.endAt();var rows=source.read(original.id(),s.cursorAt(),to,1001);var chunks=measurements.recordingWaveforms(original.id(),s.cursorAt(),to,1001);if(rows.size()>1000||chunks.size()>1000)throw ApiException.bad("Replay window too dense; reduce speed");
-  if(!rows.isEmpty())ingestion.ingest(rows.stream().map(m->new Observation("sim:"+id+":"+m.id(),s.admissionId(),m.deviceId(),m.metric(),m.value(),m.unit(),m.observedAt(),output.sourceId(),output.id(),m.quality())).toList());
-  for(var c:chunks)ingestion.ingestWaveform(new Waveform("sim:"+id+":"+c.id(),s.admissionId(),c.deviceId(),c.metric(),c.unit(),c.observedAt(),c.sampleRateHz(),c.samples(),output.sourceId(),output.id(),c.quality()));
-  dao.cursor(id,to,to.equals(original.endAt())?SimulatorState.COMPLETED:SimulatorState.RUNNING);publish(dao.get(id,false).orElseThrow());
- }
- private void publish(SimulationSession s){events.publish(MonitoringEvent.of("SIMULATION",s.admissionId(),null,null,null,SourceType.SIMULATION,null,s));}
+
+import java.time.*;
+import java.util.*;
+import org.biopulse.dao.*;
+import org.biopulse.domain.*;
+import org.biopulse.dto.Requests.*;
+import org.biopulse.exception.ApiException;
+import org.biopulse.security.AccessPolicy;
+import org.biopulse.simulation.MeasurementSource;
+import org.biopulse.websocket.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class SimulationService {
+  private final SimulationDao dao;
+  private final RegistryDao registry;
+  private final MeasurementDao measurements;
+  private final MeasurementSource source;
+  private final MeasurementIngestionService ingestion;
+  private final MonitoringEventPublisher events;
+  private final AccessPolicy access;
+
+  public SimulationService(
+      SimulationDao dao,
+      RegistryDao registry,
+      MeasurementDao measurements,
+      MeasurementSource source,
+      MeasurementIngestionService ingestion,
+      MonitoringEventPublisher events,
+      AccessPolicy access) {
+    this.dao = dao;
+    this.registry = registry;
+    this.measurements = measurements;
+    this.source = source;
+    this.ingestion = ingestion;
+    this.events = events;
+    this.access = access;
+  }
+
+  public SimulationSession get(long id) {
+    var s = dao.get(id, false).orElseThrow(() -> ApiException.missing("Simulation"));
+    access.admission(s.admissionId());
+    return s;
+  }
+
+  @Transactional
+  public SimulationSession create(SimulationCreate r) {
+    access.admission(r.admissionId());
+    var rec =
+        registry.recording(r.recordingId()).orElseThrow(() -> ApiException.missing("Recording"));
+    var src =
+        registry.createSource(
+            new SourceCreate(
+                "Replay " + rec.name(),
+                SourceType.SIMULATION,
+                "Recorded playback; original recording:"
+                    + rec.id()
+                    + "; original source:"
+                    + rec.sourceId()));
+    var output =
+        registry.createRecording(
+            new RecordingCreate(src.id(), "Replay " + rec.name(), rec.startAt(), rec.endAt()));
+    var s = dao.create(r.admissionId(), rec.id(), output.id(), r.speed(), rec.startAt());
+    access.audit("CREATE_SIMULATION", "session:" + s.id());
+    return s;
+  }
+
+  @Transactional
+  public SimulationSession transition(long id, String action) {
+    var s = dao.get(id, true).orElseThrow(() -> ApiException.missing("Simulation"));
+    access.admission(s.admissionId());
+    SimulatorState next =
+        switch (action) {
+          case "start" -> {
+            if (s.state() != SimulatorState.CREATED)
+              throw ApiException.conflict("Only CREATED sessions can start");
+            yield SimulatorState.RUNNING;
+          }
+          case "pause" -> {
+            if (s.state() != SimulatorState.RUNNING)
+              throw ApiException.conflict("Only RUNNING sessions can pause");
+            yield SimulatorState.PAUSED;
+          }
+          case "resume" -> {
+            if (s.state() != SimulatorState.PAUSED)
+              throw ApiException.conflict("Only PAUSED sessions can resume");
+            yield SimulatorState.RUNNING;
+          }
+          case "stop" -> {
+            if (s.state() == SimulatorState.STOPPED || s.state() == SimulatorState.COMPLETED)
+              throw ApiException.conflict("Session already terminal");
+            yield SimulatorState.STOPPED;
+          }
+          default -> throw ApiException.bad("Invalid simulation action");
+        };
+    dao.state(id, s.state(), next);
+    var result = dao.get(id, false).orElseThrow();
+    publish(result);
+    access.audit("SIMULATION_" + action, "session:" + id);
+    return result;
+  }
+
+  @Transactional
+  public void tick(long id) {
+    var s = dao.get(id, true).orElseThrow();
+    if (s.state() != SimulatorState.RUNNING) return;
+    var original = registry.recording(s.recordingId()).orElseThrow();
+    var output = registry.recording(s.outputRecordingId()).orElseThrow();
+    Instant to = s.cursorAt().plusNanos((long) (s.speed() * 1e9));
+    if (to.isAfter(original.endAt())) to = original.endAt();
+    var rows = source.read(original.id(), s.cursorAt(), to, 1001);
+    var chunks = measurements.recordingWaveforms(original.id(), s.cursorAt(), to, 1001);
+    if (rows.size() > 1000 || chunks.size() > 1000)
+      throw ApiException.bad("Replay window too dense; reduce speed");
+    if (!rows.isEmpty())
+      ingestion.ingest(
+          rows.stream()
+              .map(
+                  m ->
+                      new Observation(
+                          "sim:" + id + ":" + m.id(),
+                          s.admissionId(),
+                          m.deviceId(),
+                          m.metric(),
+                          m.value(),
+                          m.unit(),
+                          m.observedAt(),
+                          output.sourceId(),
+                          output.id(),
+                          m.quality()))
+              .toList());
+    for (var c : chunks)
+      ingestion.ingestWaveform(
+          new Waveform(
+              "sim:" + id + ":" + c.id(),
+              s.admissionId(),
+              c.deviceId(),
+              c.metric(),
+              c.unit(),
+              c.observedAt(),
+              c.sampleRateHz(),
+              c.samples(),
+              output.sourceId(),
+              output.id(),
+              c.quality()));
+    dao.cursor(
+        id, to, to.equals(original.endAt()) ? SimulatorState.COMPLETED : SimulatorState.RUNNING);
+    publish(dao.get(id, false).orElseThrow());
+  }
+
+  private void publish(SimulationSession s) {
+    events.publish(
+        MonitoringEvent.of(
+            "SIMULATION", s.admissionId(), null, null, null, SourceType.SIMULATION, null, s));
+  }
 }

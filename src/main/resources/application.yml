@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/biopulse?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/biomedical_dashboard?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true}
     username: ${DB_USER:biopulse}
     password: ${DB_PASSWORD}
     hikari:
@@ -25,6 +25,6 @@ server:
         same-site: strict
         secure: ${COOKIE_SECURE:false}
 biopulse:
-  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080,http://127.0.0.1:5173,http://127.0.0.1:8080}
   seed-demo: ${SEED_DEMO:false}
   demo-password: ${DEMO_PASSWORD:}

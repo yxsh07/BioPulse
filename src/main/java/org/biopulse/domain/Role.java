@@ -1,2 +1,7 @@
 package org.biopulse.domain;
-public enum Role { ADMIN, DOCTOR, NURSE }
+
+public enum Role {
+  ADMIN,
+  DOCTOR,
+  NURSE
+}

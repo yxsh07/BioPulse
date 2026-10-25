@@ -1,0 +1,220 @@
+{
+  "projectUrl": "https://framer.com/projects/azwYqp0KC0VqssYRvb7l",
+  "status": "unpublished research prototype",
+  "screens": [
+    {
+      "screen": "overview",
+      "id": "uZzkRMPEJ",
+      "url": "https://framerusercontent.com/screenshots/on-demand/56d410da-1a95-40f5-909e-dd4b8cb4cb96.jpg"
+    },
+    {
+      "screen": "login",
+      "id": "HI47nHBa5",
+      "url": "https://framerusercontent.com/screenshots/on-demand/6da246c9-8705-4518-9c2f-3f30e4a82c5f.jpg"
+    },
+    {
+      "screen": "patients",
+      "id": "gj061b9Fr",
+      "url": "https://framerusercontent.com/screenshots/on-demand/987ec79f-a01f-49fe-b8de-47aa3fc798f7.jpg"
+    },
+    {
+      "screen": "patient",
+      "id": "SE4UjLuUh",
+      "url": "https://framerusercontent.com/screenshots/on-demand/9007602d-7884-4edf-bf52-7d4070074a66.jpg"
+    },
+    {
+      "screen": "monitoring",
+      "id": "CQlUE8Kka",
+      "url": "https://framerusercontent.com/screenshots/on-demand/cf57dc1a-3567-4a6c-ba4d-3855e833da51.jpg"
+    },
+    {
+      "screen": "trends",
+      "id": "Adz99EeEV",
+      "url": "https://framerusercontent.com/screenshots/on-demand/d86d97b9-815e-432e-8ab4-c1f89dd9aae3.jpg"
+    },
+    {
+      "screen": "alerts",
+      "id": "dte9bAVti",
+      "url": "https://framerusercontent.com/screenshots/on-demand/f6b8e304-2094-4ce4-a494-45ec19dc0ef9.jpg"
+    },
+    {
+      "screen": "alert-detail",
+      "id": "YSmA1Lo6b",
+      "url": "https://framerusercontent.com/screenshots/on-demand/9d2d0454-f391-4991-b4cf-ef4a6cf168c3.jpg"
+    },
+    {
+      "screen": "report",
+      "id": "POBQ3Cp9i",
+      "url": "https://framerusercontent.com/screenshots/on-demand/dbd643c2-bee8-4a19-b3da-7e1a01f77f0a.jpg"
+    },
+    {
+      "screen": "profile",
+      "id": "t2vcDD_q8",
+      "url": "https://framerusercontent.com/screenshots/on-demand/bc026396-0a65-4a19-8246-ba196e206ef8.jpg"
+    }
+  ],
+  "pages": [
+    {
+      "id": "augiA20Il",
+      "path": "/",
+      "breakpoints": [
+        {
+          "id": "WQLkyLRf1",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "uZzkRMPEJ",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "Nq3hIR7Zx",
+      "path": "/login",
+      "breakpoints": [
+        {
+          "id": "bvNSUYCu8",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "HI47nHBa5",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "uS4KPEy8Y",
+      "path": "/patients",
+      "breakpoints": [
+        {
+          "id": "yPlcdYrS_",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "gj061b9Fr",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "g2PqHwh_n",
+      "path": "/patient",
+      "breakpoints": [
+        {
+          "id": "Lc6IPlyXZ",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "SE4UjLuUh",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "vn04iZBRE",
+      "path": "/monitoring",
+      "breakpoints": [
+        {
+          "id": "Mp2U1dwiB",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "CQlUE8Kka",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "O2qKgNEcX",
+      "path": "/trends",
+      "breakpoints": [
+        {
+          "id": "Qskt51xTF",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "Adz99EeEV",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "YwEDpm6hh",
+      "path": "/alerts",
+      "breakpoints": [
+        {
+          "id": "eTqUVO_oU",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "dte9bAVti",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "JDon1HVuJ",
+      "path": "/alert-detail",
+      "breakpoints": [
+        {
+          "id": "k_tuNMeqV",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "YSmA1Lo6b",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "XrKWUNjL3",
+      "path": "/report",
+      "breakpoints": [
+        {
+          "id": "j8fWq5CRO",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "POBQ3Cp9i",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    },
+    {
+      "id": "wh2HMXoo8",
+      "path": "/profile",
+      "breakpoints": [
+        {
+          "id": "zYRAlCNWb",
+          "name": "Desktop",
+          "mediaQueryRange": "(min-width: 1200px)"
+        },
+        {
+          "id": "t2vcDD_q8",
+          "name": "Phone",
+          "mediaQueryRange": "(max-width: 1199.98px)"
+        }
+      ]
+    }
+  ],
+  "source": "source/ResearchControls.tsx",
+  "backendConnected": false
+}

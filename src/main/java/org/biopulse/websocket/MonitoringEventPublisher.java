@@ -1,2 +1,5 @@
 package org.biopulse.websocket;
-public interface MonitoringEventPublisher {void publish(MonitoringEvent event);}
+
+public interface MonitoringEventPublisher {
+  void publish(MonitoringEvent event);
+}

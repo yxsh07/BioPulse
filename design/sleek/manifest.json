@@ -1,0 +1,52 @@
+{
+  "projectUrl": "https://sleek.design/project/3xjcpDcVXit",
+  "requestedScreens": 10,
+  "renderedScreens": 4,
+  "status": "partial_out_of_credits",
+  "screens": [
+    {
+      "name": "Overview",
+      "componentId": "OsuU9Xp3fTL",
+      "screenId": "99bW1VX0Fi9",
+      "activeVersion": 1,
+      "html": "mobile/html/OsuU9Xp3fTL.html",
+      "viewport": "mobile/renders/OsuU9Xp3fTL-viewport.png",
+      "fullHeight": "mobile/renders/OsuU9Xp3fTL-full.png"
+    },
+    {
+      "name": "Active Patient List",
+      "componentId": "kA3WfTxySfO",
+      "screenId": "Fp6Jk9oz5lw",
+      "activeVersion": 1,
+      "html": "mobile/html/kA3WfTxySfO.html",
+      "viewport": "mobile/renders/kA3WfTxySfO-viewport.png",
+      "fullHeight": "mobile/renders/kA3WfTxySfO-full.png"
+    },
+    {
+      "name": "Patient Detail",
+      "componentId": "srCWG1iorXZ",
+      "screenId": "Y85mQj8n0fH",
+      "activeVersion": 1,
+      "html": "mobile/html/srCWG1iorXZ.html",
+      "viewport": "mobile/renders/srCWG1iorXZ-viewport.png",
+      "fullHeight": "mobile/renders/srCWG1iorXZ-full.png"
+    },
+    {
+      "name": "Live Monitoring",
+      "componentId": "Brr9gG0RPtI",
+      "screenId": "Wry4wLA9RzU",
+      "activeVersion": 1,
+      "html": "mobile/html/Brr9gG0RPtI.html",
+      "viewport": "mobile/renders/Brr9gG0RPtI-viewport.png",
+      "fullHeight": "mobile/renders/Brr9gG0RPtI-full.png"
+    }
+  ],
+  "missingScreens": [
+    "Secure Login",
+    "Historical Trends",
+    "Alert Center",
+    "Detailed Alert Information",
+    "Patient Monitoring Report",
+    "Profile and Notification Preferences"
+  ]
+}

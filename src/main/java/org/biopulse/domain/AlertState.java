@@ -1,2 +1,7 @@
 package org.biopulse.domain;
-public enum AlertState { OPEN, ACKNOWLEDGED, RESOLVED }
+
+public enum AlertState {
+  OPEN,
+  ACKNOWLEDGED,
+  RESOLVED
+}

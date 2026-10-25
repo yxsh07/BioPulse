@@ -1,6 +1,6 @@
 .tools/
 .graphify-venv/
-graphify-out/cache/
+graphify-out/
 target/
 node_modules/
 dist/
@@ -11,3 +11,5 @@ test-results/
 playwright-report/
 .idea/
 *.iml
+
+BioPulse-design-handoff.zip

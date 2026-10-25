@@ -1,0 +1,61 @@
+@base = http://localhost:8080/api/v1
+# Use your HTTP client's cookie jar. Replace {{csrf}} with the returned csrfToken.
+# Set {{demoPassword}} in your private HTTP-client environment; do not commit it.
+GET {{base}}/session
+
+### Authenticate
+POST {{base}}/session
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrf}}
+
+{"username":"admin@biopulse.local","password":"{{demoPassword}}"}
+
+### Authorized registry
+GET {{base}}/patients?page=0&size=25
+
+### Latest values
+GET {{base}}/admissions/1/measurements/latest
+
+### Historical range: UTC, start included, end excluded
+GET {{base}}/admissions/1/measurements?metric=HR&from=2026-10-25T08:30:00Z&to=2026-10-25T08:38:01Z&page=0&size=100
+
+### Explicit cadence for temporal coverage
+GET {{base}}/admissions/1/analytics?metric=HR&from=2026-10-25T08:30:00Z&to=2026-10-25T08:38:01Z&cadenceSeconds=10
+
+### Read a version before changing state
+GET {{base}}/alerts/1
+
+### Acknowledge
+POST {{base}}/alerts/1/acknowledge
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrf}}
+
+{"expectedVersion":0}
+
+### Admission-specific rule, educational example only
+POST {{base}}/alert-rules
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrf}}
+
+{"admissionId":1,"metric":"HR","lowerBound":null,"upperBound":120,"persistenceSeconds":20,"maxGapSeconds":15,"severity":"WARNING"}
+
+### Replay retains original sample timestamps and creates simulation provenance
+POST {{base}}/simulation-sessions
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrf}}
+
+{"admissionId":1,"recordingId":1,"speed":1}
+
+### Start
+POST {{base}}/simulation-sessions/1/start
+X-XSRF-TOKEN: {{csrf}}
+
+### Generate persisted report
+POST {{base}}/reports
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrf}}
+
+{"admissionId":1,"from":"2026-10-25T08:30:00Z","to":"2026-10-25T08:38:01Z"}
+
+### Download
+GET {{base}}/reports/1/download

@@ -1,22 +1,233 @@
 package org.biopulse.config;
-import org.springframework.boot.*;import org.springframework.stereotype.Component;import org.springframework.beans.factory.annotation.Value;import org.springframework.security.crypto.password.PasswordEncoder;import org.springframework.transaction.annotation.Transactional;import org.biopulse.jdbc.Sql;import java.time.*;import java.util.*;import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.*;
+import java.util.*;
+import org.biopulse.jdbc.Sql;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
 /** Opt-in, deterministic academic fixtures. Credentials are supplied at runtime. */
-@Component public class DemoSeeder implements ApplicationRunner {
- private final Sql sql;private final PasswordEncoder passwords;private final ObjectMapper json;private final boolean enabled;private final String password;
- public DemoSeeder(Sql sql,PasswordEncoder passwords,ObjectMapper json,@Value("${biopulse.seed-demo}") boolean enabled,@Value("${biopulse.demo-password}") String password){this.sql=sql;this.passwords=passwords;this.json=json;this.enabled=enabled;this.password=password;}
- @Transactional public void run(ApplicationArguments args)throws Exception {if(!enabled)return;if(password.length()<12)throw new IllegalStateException("DEMO_PASSWORD must contain at least 12 characters");if(!sql.query("SELECT id FROM users LIMIT 1",r->r.getLong(1)).isEmpty())return;
-  long ward=sql.insert("INSERT INTO wards(name) VALUES(?)","Ward B");for(String role:List.of("ADMIN","DOCTOR","NURSE")){long u=sql.insert("INSERT INTO users(username,password_hash,role) VALUES(?,?,?)",role.toLowerCase()+"@biopulse.local",passwords.encode(password),role);sql.insert("INSERT INTO user_wards(user_id,ward_id) VALUES(?,?)",u,ward);}
-  Instant start=Instant.parse("2026-10-25T08:30:00Z"),end=start.plusSeconds(480);long source=sql.insert("INSERT INTO data_sources(name,type,provenance) VALUES(?,'DATASET',?)","Framer research fixture","Deterministic synthetic observations and illustrative uncalibrated waveforms; design/framer/HANDOFF.md; no clinical dataset");long recording=sql.insert("INSERT INTO source_recordings(source_id,name,start_at,end_at) VALUES(?,?,?,?)",source,"Eight-minute research fixture",start,end.plusSeconds(1));
-  String[] names={"Avery R.","Jordan M.","Morgan L.","Casey T.","Riley K.","Quinn S.","Skyler P.","Taylor A.","Parker N.","Rowan D.","Reese C.","Finley J."};
-  for(int i=0;i<12;i++){long patient=sql.insert("INSERT INTO patients(code,display_name) VALUES(?,?)",String.format("PT-%04d",247+i),names[i]);long bed=sql.insert("INSERT INTO beds(ward_id,label) VALUES(?,?)",ward,"Bed "+(12+i));long admission=sql.insert("INSERT INTO admissions(patient_id,bed_id,status,admitted_at) VALUES(?,?,'ACTIVE',?)",patient,bed,start.minusSeconds(3600));long device=sql.insert("INSERT INTO devices(serial,adapter_type,online) VALUES(?,'MULTI',?)",String.format("MON-%03d",12+i),i<10);sql.insert("INSERT INTO device_assignments(device_id,admission_id,assigned_at) VALUES(?,?,?)",device,admission,start.minusSeconds(3600));
-   if(i==0){for(int t=0;t<=480;t+=10){if(t>=250&&t<265)continue;double hr=t==480?108:100+Math.sin(t/50.0)*8;double spo=t>=190&&t<=220?89:94;observation(admission,device,source,recording,"HR",hr,"bpm",start.plusSeconds(t),"hr:"+t);observation(admission,device,source,recording,"SPO2",spo,"%",start.plusSeconds(t),"spo:"+t);}
-    for(Object[] spot:List.of(new Object[]{"RR",22d,"breaths/min"},new Object[]{"SBP",128d,"mmHg"},new Object[]{"DBP",82d,"mmHg"},new Object[]{"TEMP",37.1,"Cel"}))observation(admission,device,source,recording,(String)spot[0],(Double)spot[1],(String)spot[2],end,"spot:"+spot[0]);
-    for(String metric:List.of("ECG","PPG","RESP")){for(int t=0;t<480;t+=5){if(t>=250&&t<265)continue;List<Double> samples=new ArrayList<>();for(int j=0;j<125;j++){double x=(t+j/25.0);double v=metric.equals("ECG")?Math.sin(x*8)*0.12+(Math.pow(Math.max(0,Math.sin(x*8)),24)*0.8):metric.equals("PPG")?Math.sin(x*7)*0.6:Math.sin(x*2.3)*0.7;samples.add(v);}sql.insert("INSERT INTO waveform_chunks(event_id,admission_id,device_id,metric,unit,observed_at,received_at,sample_rate_hz,samples,source_id,recording_id,quality) VALUES(?,?,?,?,?,?,?,25,?,?,?,'GOOD')",metric+":"+t,admission,device,metric,metric.equals("ECG")?"mV":"a.u.",start.plusSeconds(t),end,json.writeValueAsString(samples),source,recording);}}
-   }
-   if(i<5){long rule=sql.insert("INSERT INTO alert_rules(admission_id,metric,upper_bound,persistence_seconds,max_gap_seconds,severity) VALUES(?,'HR',?,20,15,?)",admission,105,i<2?"CRITICAL":"WARNING");long alert=sql.insert("INSERT INTO alerts(admission_id,rule_id,metric,severity,state,started_at,triggered_at,value,unit,quality,source_id) VALUES(?,?,'HR',?,'OPEN',?,?,?,'bpm','FAIR',?)",admission,rule,i<2?"CRITICAL":"WARNING",end.minusSeconds(115),end.minusSeconds(95),108,source);sql.insert("INSERT INTO alert_events(alert_id,actor,action,occurred_at) VALUES(?,'fixture','SEEDED_SYNTHETIC_EVENT',?)",alert,end.minusSeconds(95));}
+@Component
+public class DemoSeeder implements ApplicationRunner {
+  private final Sql sql;
+  private final PasswordEncoder passwords;
+  private final ObjectMapper json;
+  private final boolean enabled;
+  private final String password;
+
+  public DemoSeeder(
+      Sql sql,
+      PasswordEncoder passwords,
+      ObjectMapper json,
+      @Value("${biopulse.seed-demo}") boolean enabled,
+      @Value("${biopulse.demo-password}") String password) {
+    this.sql = sql;
+    this.passwords = passwords;
+    this.json = json;
+    this.enabled = enabled;
+    this.password = password;
   }
-  // Cohort alerts are labeled fixtures; their rows do not claim underlying numerical series.
-  sql.insert("INSERT INTO audit_events(actor,action,resource,occurred_at) VALUES('system','SEED_SYNTHETIC_FIXTURES','demo',?)",Instant.now());
- }
- private void observation(long a,long d,long s,long r,String metric,double value,String unit,Instant at,String event){sql.insert("INSERT INTO measurements(event_id,admission_id,device_id,metric,value,unit,observed_at,received_at,source_id,recording_id,quality) VALUES(?,?,?,?,?,?,?,?,?,?,'FAIR')",event,a,d,metric,value,unit,at,at,s,r);}
+
+  @Transactional
+  public void run(ApplicationArguments args) throws Exception {
+    if (!enabled) return;
+    if (password.length() < 12)
+      throw new IllegalStateException("DEMO_PASSWORD must contain at least 12 characters");
+    if (!sql.query("SELECT id FROM users LIMIT 1", r -> r.getLong(1)).isEmpty()) return;
+    long ward = sql.insert("INSERT INTO wards(name) VALUES(?)", "Ward B");
+    for (String role : List.of("ADMIN", "DOCTOR", "NURSE")) {
+      long u =
+          sql.insert(
+              "INSERT INTO users(username,password_hash,role) VALUES(?,?,?)",
+              role.toLowerCase() + "@biopulse.local",
+              passwords.encode(password),
+              role);
+      sql.update("INSERT INTO user_wards(user_id,ward_id) VALUES(?,?)", u, ward);
+    }
+    Instant start = Instant.parse("2026-10-25T08:30:00Z"), end = start.plusSeconds(480);
+    long source =
+        sql.insert(
+            "INSERT INTO data_sources(name,type,provenance) VALUES(?,'DATASET',?)",
+            "Framer research fixture",
+            "Deterministic synthetic observations and illustrative uncalibrated waveforms;"
+                + " design/framer/HANDOFF.md; no clinical dataset");
+    long recording =
+        sql.insert(
+            "INSERT INTO source_recordings(source_id,name,start_at,end_at) VALUES(?,?,?,?)",
+            source,
+            "Eight-minute research fixture",
+            start,
+            end.plusSeconds(1));
+    String[] names = {
+      "Avery R.",
+      "Jordan M.",
+      "Morgan L.",
+      "Casey T.",
+      "Riley K.",
+      "Quinn S.",
+      "Skyler P.",
+      "Taylor A.",
+      "Parker N.",
+      "Rowan D.",
+      "Reese C.",
+      "Finley J."
+    };
+    for (int i = 0; i < 12; i++) {
+      long patient =
+          sql.insert(
+              "INSERT INTO patients(code,display_name) VALUES(?,?)",
+              String.format("PT-%04d", 247 + i),
+              names[i]);
+      long bed = sql.insert("INSERT INTO beds(ward_id,label) VALUES(?,?)", ward, "Bed " + (12 + i));
+      long admission =
+          sql.insert(
+              "INSERT INTO admissions(patient_id,bed_id,status,admitted_at) VALUES(?,?,'ACTIVE',?)",
+              patient,
+              bed,
+              start.minusSeconds(3600));
+      long device =
+          sql.insert(
+              "INSERT INTO devices(serial,adapter_type,online) VALUES(?,'MULTI',?)",
+              String.format("MON-%03d", 12 + i),
+              i < 10);
+      sql.insert(
+          "INSERT INTO device_assignments(device_id,admission_id,assigned_at) VALUES(?,?,?)",
+          device,
+          admission,
+          start.minusSeconds(3600));
+      if (i == 0) {
+        for (int t = 0; t <= 480; t += 10) {
+          if (t >= 250 && t < 265) continue;
+          double hr = t == 480 ? 108 : 100 + Math.sin(t / 50.0) * 8;
+          double spo = t >= 190 && t <= 220 ? 89 : 94;
+          observation(
+              admission,
+              device,
+              source,
+              recording,
+              "HR",
+              hr,
+              "bpm",
+              start.plusSeconds(t),
+              "hr:" + t);
+          observation(
+              admission,
+              device,
+              source,
+              recording,
+              "SPO2",
+              spo,
+              "%",
+              start.plusSeconds(t),
+              "spo:" + t);
+        }
+        for (Object[] spot :
+            List.of(
+                new Object[] {"RR", 22d, "breaths/min"},
+                new Object[] {"SBP", 128d, "mmHg"},
+                new Object[] {"DBP", 82d, "mmHg"},
+                new Object[] {"TEMP", 37.1, "Cel"}))
+          observation(
+              admission,
+              device,
+              source,
+              recording,
+              (String) spot[0],
+              (Double) spot[1],
+              (String) spot[2],
+              end,
+              "spot:" + spot[0]);
+        for (String metric : List.of("ECG", "PPG", "RESP")) {
+          for (int t = 0; t < 480; t += 5) {
+            if (t >= 250 && t < 265) continue;
+            List<Double> samples = new ArrayList<>();
+            for (int j = 0; j < 125; j++) {
+              double x = (t + j / 25.0);
+              double v =
+                  metric.equals("ECG")
+                      ? Math.sin(x * 8) * 0.12 + (Math.pow(Math.max(0, Math.sin(x * 8)), 24) * 0.8)
+                      : metric.equals("PPG") ? Math.sin(x * 7) * 0.6 : Math.sin(x * 2.3) * 0.7;
+              samples.add(v);
+            }
+            sql.insert(
+                "INSERT INTO"
+                    + " waveform_chunks(event_id,admission_id,device_id,metric,unit,observed_at,received_at,sample_rate_hz,samples,source_id,recording_id,quality)"
+                    + " VALUES(?,?,?,?,?,?,?,25,?,?,?,'GOOD')",
+                metric + ":" + t,
+                admission,
+                device,
+                metric,
+                metric.equals("ECG") ? "mV" : "a.u.",
+                start.plusSeconds(t),
+                end,
+                json.writeValueAsString(samples),
+                source,
+                recording);
+          }
+        }
+      }
+      if (i < 5) {
+        long rule =
+            sql.insert(
+                "INSERT INTO"
+                    + " alert_rules(admission_id,metric,upper_bound,persistence_seconds,max_gap_seconds,severity)"
+                    + " VALUES(?,'HR',?,20,15,?)",
+                admission,
+                105,
+                i < 2 ? "CRITICAL" : "WARNING");
+        long alert =
+            sql.insert(
+                "INSERT INTO"
+                    + " alerts(admission_id,rule_id,metric,severity,state,started_at,triggered_at,value,unit,quality,source_id)"
+                    + " VALUES(?,?,'HR',?,'OPEN',?,?,?,'bpm','FAIR',?)",
+                admission,
+                rule,
+                i < 2 ? "CRITICAL" : "WARNING",
+                end.minusSeconds(115),
+                end.minusSeconds(95),
+                108,
+                source);
+        sql.insert(
+            "INSERT INTO alert_events(alert_id,actor,action,occurred_at)"
+                + " VALUES(?,'fixture','SEEDED_SYNTHETIC_EVENT',?)",
+            alert,
+            end.minusSeconds(95));
+      }
+    }
+    // Cohort alerts are labeled fixtures; their rows do not claim underlying numerical series.
+    sql.insert(
+        "INSERT INTO audit_events(actor,action,resource,occurred_at)"
+            + " VALUES('system','SEED_SYNTHETIC_FIXTURES','demo',?)",
+        Instant.now());
+  }
+
+  private void observation(
+      long a,
+      long d,
+      long s,
+      long r,
+      String metric,
+      double value,
+      String unit,
+      Instant at,
+      String event) {
+    sql.insert(
+        "INSERT INTO"
+            + " measurements(event_id,admission_id,device_id,metric,value,unit,observed_at,received_at,source_id,recording_id,quality)"
+            + " VALUES(?,?,?,?,?,?,?,?,?,?,'FAIR')",
+        event,
+        a,
+        d,
+        metric,
+        value,
+        unit,
+        at,
+        at,
+        s,
+        r);
+  }
 }

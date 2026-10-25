@@ -1,2 +1,6 @@
 package org.biopulse.domain;
-public enum AdmissionStatus { ACTIVE, DISCHARGED }
+
+public enum AdmissionStatus {
+  ACTIVE,
+  DISCHARGED
+}

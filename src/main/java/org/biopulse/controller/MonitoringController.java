@@ -1,12 +1,104 @@
 package org.biopulse.controller;
-import java.time.*;import java.util.*;import org.biopulse.dao.*;import org.biopulse.domain.*;import org.biopulse.dto.*;import org.biopulse.dto.Requests.*;import org.biopulse.service.*;import org.biopulse.security.AccessPolicy;import org.biopulse.analytics.SignalAnalyzer;import org.springframework.web.bind.annotation.*;import org.springframework.security.access.prepost.PreAuthorize;import jakarta.validation.Valid;import jakarta.validation.constraints.*;import org.springframework.validation.annotation.Validated;
-@RestController @RequestMapping("/api/v1") @Validated public class MonitoringController {
- private final MonitoringService monitoring;private final MeasurementDao dao;private final MeasurementIngestionService ingestion;private final AnalyticsService analytics;private final AccessPolicy access;private final SignalAnalyzer signal;
- public MonitoringController(MonitoringService monitoring,MeasurementDao dao,MeasurementIngestionService ingestion,AnalyticsService analytics,AccessPolicy access,SignalAnalyzer signal){this.monitoring=monitoring;this.dao=dao;this.ingestion=ingestion;this.analytics=analytics;this.access=access;this.signal=signal;}
- @GetMapping("/admissions/{id}/measurements/latest") public List<Measurement> latest(@PathVariable long id){return monitoring.latest(id);}
- @GetMapping("/admissions/{id}/measurements") public Page<Measurement> history(@PathVariable long id,@RequestParam MeasurementCode metric,@RequestParam Instant from,@RequestParam Instant to,@RequestParam(defaultValue="0") @Min(0) @Max(100000) int page,@RequestParam(defaultValue="100") @Min(1) @Max(1000) int size){access.admission(id);AnalyticsService.range(from,to);return Page.of(dao.history(id,metric,from,to,size+1,page*size),page,size);}
- @GetMapping("/admissions/{id}/waveforms") public Page<Map<String,Object>> waveforms(@PathVariable long id,@RequestParam MeasurementCode metric,@RequestParam Instant from,@RequestParam Instant to,@RequestParam(defaultValue="0") @Min(0) @Max(100000) int page,@RequestParam(defaultValue="25") @Min(1) @Max(100) int size){access.admission(id);AnalyticsService.range(from,to);return Page.of(dao.waveforms(id,metric,from,to,size+1,page*size).stream().map(c->Map.<String,Object>of("chunk",c,"metadata",signal.analyze(c))).toList(),page,size);}
- @GetMapping("/admissions/{id}/analytics") public Map<String,Object> analytics(@PathVariable long id,@RequestParam(defaultValue="HR") MeasurementCode metric,@RequestParam Instant from,@RequestParam Instant to,@RequestParam(defaultValue="10") int cadenceSeconds,@RequestParam(required=false) Double low,@RequestParam(required=false) Double high){return analytics.analyze(id,metric,from,to,cadenceSeconds,low,high);}
- @PostMapping("/internal/simulator/measurements") @PreAuthorize("hasRole('ADMIN')") public List<Measurement> ingest(@RequestBody @NotEmpty @Size(max=1000) List<@Valid Observation> r){return ingestion.ingest(r);}
- @PostMapping("/internal/simulator/waveform-chunks") @PreAuthorize("hasRole('ADMIN')") public WaveformChunk waveform(@Valid @RequestBody Waveform r){return ingestion.ingestWaveform(r);}
+
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
+import java.time.*;
+import java.util.*;
+import org.biopulse.analytics.SignalAnalyzer;
+import org.biopulse.dao.*;
+import org.biopulse.domain.*;
+import org.biopulse.dto.*;
+import org.biopulse.dto.Requests.*;
+import org.biopulse.security.AccessPolicy;
+import org.biopulse.service.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1")
+@Validated
+public class MonitoringController {
+  private final MonitoringService monitoring;
+  private final MeasurementDao dao;
+  private final MeasurementIngestionService ingestion;
+  private final AnalyticsService analytics;
+  private final AccessPolicy access;
+  private final SignalAnalyzer signal;
+
+  public MonitoringController(
+      MonitoringService monitoring,
+      MeasurementDao dao,
+      MeasurementIngestionService ingestion,
+      AnalyticsService analytics,
+      AccessPolicy access,
+      SignalAnalyzer signal) {
+    this.monitoring = monitoring;
+    this.dao = dao;
+    this.ingestion = ingestion;
+    this.analytics = analytics;
+    this.access = access;
+    this.signal = signal;
+  }
+
+  @GetMapping("/admissions/{id}/measurements/latest")
+  public List<Measurement> latest(@PathVariable long id) {
+    return monitoring.latest(id);
+  }
+
+  @GetMapping("/admissions/{id}/measurements")
+  public Page<Measurement> history(
+      @PathVariable long id,
+      @RequestParam MeasurementCode metric,
+      @RequestParam Instant from,
+      @RequestParam Instant to,
+      @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
+      @RequestParam(defaultValue = "100") @Min(1) @Max(1000) int size) {
+    access.admission(id);
+    AnalyticsService.range(from, to);
+    return Page.of(dao.history(id, metric, from, to, size + 1, page * size), page, size);
+  }
+
+  @GetMapping("/admissions/{id}/waveforms")
+  public Page<Map<String, Object>> waveforms(
+      @PathVariable long id,
+      @RequestParam MeasurementCode metric,
+      @RequestParam Instant from,
+      @RequestParam Instant to,
+      @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
+      @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+    access.admission(id);
+    AnalyticsService.range(from, to);
+    return Page.of(
+        dao.waveforms(id, metric, from, to, size + 1, page * size).stream()
+            .map(c -> Map.<String, Object>of("chunk", c, "metadata", signal.analyze(c)))
+            .toList(),
+        page,
+        size);
+  }
+
+  @GetMapping("/admissions/{id}/analytics")
+  public Map<String, Object> analytics(
+      @PathVariable long id,
+      @RequestParam(defaultValue = "HR") MeasurementCode metric,
+      @RequestParam Instant from,
+      @RequestParam Instant to,
+      @RequestParam(defaultValue = "10") int cadenceSeconds,
+      @RequestParam(required = false) Double low,
+      @RequestParam(required = false) Double high) {
+    return analytics.analyze(id, metric, from, to, cadenceSeconds, low, high);
+  }
+
+  @PostMapping("/internal/simulator/measurements")
+  @PreAuthorize("hasRole('ADMIN')")
+  public List<Measurement> ingest(
+      @RequestBody @NotEmpty @Size(max = 1000) List<@Valid Observation> r) {
+    return ingestion.ingest(r);
+  }
+
+  @PostMapping("/internal/simulator/waveform-chunks")
+  @PreAuthorize("hasRole('ADMIN')")
+  public WaveformChunk waveform(@Valid @RequestBody Waveform r) {
+    return ingestion.ingestWaveform(r);
+  }
 }

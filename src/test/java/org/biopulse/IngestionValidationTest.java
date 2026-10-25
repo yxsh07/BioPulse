@@ -1,10 +1,77 @@
 package org.biopulse;
-import org.junit.jupiter.api.*;import static org.junit.jupiter.api.Assertions.*;import static org.mockito.Mockito.*;import java.time.*;import java.util.*;import org.biopulse.domain.*;import org.biopulse.dao.*;import org.biopulse.dto.Requests.Observation;import org.biopulse.service.*;import org.biopulse.security.AccessPolicy;import org.biopulse.websocket.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+import java.time.*;
+import java.util.*;
+import org.biopulse.dao.*;
+import org.biopulse.domain.*;
+import org.biopulse.dto.Requests.Observation;
+import org.biopulse.security.AccessPolicy;
+import org.biopulse.service.*;
+import org.biopulse.websocket.*;
+import org.junit.jupiter.api.*;
+
 class IngestionValidationTest {
- RegistryDao registry=mock(RegistryDao.class);MeasurementDao dao=mock(MeasurementDao.class);Instant now=Instant.now().minusSeconds(2);MeasurementIngestionService service=new MeasurementIngestionService(registry,dao,new DeviceAdapterFactory(),mock(AlertService.class),mock(MonitoringEventPublisher.class),mock(AccessPolicy.class));
- @BeforeEach void setup(){when(registry.admission(1)).thenReturn(Optional.of(new Admission(1,1,1,AdmissionStatus.ACTIVE,now.minusSeconds(60),null)));when(registry.device(1)).thenReturn(Optional.of(new MedicalDevice(1,"d","ECG",true)));when(registry.source(1)).thenReturn(Optional.of(new DataSource(1,"s",SourceType.DEVICE,"fixture")));when(registry.assigned(eq(1L),eq(1L),any())).thenReturn(true);}
- Observation r(Double v,String unit,QualityFlag q){return new Observation("e",1,1,MeasurementCode.HR,v,unit,now,1,null,q);}
- @Test void acceptsExplicitMissing(){var result=service.ingest(List.of(r(null,"bpm",QualityFlag.MISSING)));assertNull(result.getFirst().value());verify(dao).insertBatch(anyList());}
- @Test void rejectsInvalidValueUnitAndAssignment(){assertThrows(RuntimeException.class,()->service.ingest(List.of(r(Double.NaN,"bpm",QualityFlag.GOOD))));assertThrows(RuntimeException.class,()->service.ingest(List.of(r(null,"bpm",QualityFlag.GOOD))));assertThrows(RuntimeException.class,()->service.ingest(List.of(r(80d,"Hz",QualityFlag.GOOD))));when(registry.assigned(anyLong(),anyLong(),any())).thenReturn(false);assertThrows(RuntimeException.class,()->service.ingest(List.of(r(80d,"bpm",QualityFlag.GOOD))));verify(dao,never()).insertBatch(anyList());}
- @Test void rejectsUnsupportedDeviceAndFuture(){assertThrows(RuntimeException.class,()->service.validate(1,1,MeasurementCode.TEMP,"Cel",now,1,null));assertThrows(RuntimeException.class,()->service.validate(1,1,MeasurementCode.HR,"bpm",now.plusSeconds(1000),1,null));}
+  RegistryDao registry = mock(RegistryDao.class);
+  MeasurementDao dao = mock(MeasurementDao.class);
+  Instant now = Instant.now().minusSeconds(2);
+  MeasurementIngestionService service =
+      new MeasurementIngestionService(
+          registry,
+          dao,
+          new DeviceAdapterFactory(),
+          mock(AlertService.class),
+          mock(MonitoringEventPublisher.class),
+          mock(AccessPolicy.class));
+
+  @BeforeEach
+  void setup() {
+    when(dao.insertBatch(anyList())).thenAnswer(i -> i.getArgument(0));
+    when(registry.admission(1))
+        .thenReturn(
+            Optional.of(
+                new Admission(1, 1, 1, AdmissionStatus.ACTIVE, now.minusSeconds(60), null)));
+    when(registry.device(1)).thenReturn(Optional.of(new MedicalDevice(1, "d", "ECG", true)));
+    when(registry.source(1))
+        .thenReturn(Optional.of(new DataSource(1, "s", SourceType.DEVICE, "fixture")));
+    when(registry.assigned(eq(1L), eq(1L), any())).thenReturn(true);
+  }
+
+  Observation r(Double v, String unit, QualityFlag q) {
+    return new Observation("e", 1, 1, MeasurementCode.HR, v, unit, now, 1, null, q);
+  }
+
+  @Test
+  void acceptsExplicitMissing() {
+    var result = service.ingest(List.of(r(null, "bpm", QualityFlag.MISSING)));
+    assertNull(result.getFirst().value());
+    verify(dao).insertBatch(anyList());
+  }
+
+  @Test
+  void rejectsInvalidValueUnitAndAssignment() {
+    assertThrows(
+        RuntimeException.class,
+        () -> service.ingest(List.of(r(Double.NaN, "bpm", QualityFlag.GOOD))));
+    assertThrows(
+        RuntimeException.class, () -> service.ingest(List.of(r(null, "bpm", QualityFlag.GOOD))));
+    assertThrows(
+        RuntimeException.class, () -> service.ingest(List.of(r(80d, "Hz", QualityFlag.GOOD))));
+    when(registry.assigned(anyLong(), anyLong(), any())).thenReturn(false);
+    assertThrows(
+        RuntimeException.class, () -> service.ingest(List.of(r(80d, "bpm", QualityFlag.GOOD))));
+    verify(dao, never()).insertBatch(anyList());
+  }
+
+  @Test
+  void rejectsUnsupportedDeviceAndFuture() {
+    assertThrows(
+        RuntimeException.class,
+        () -> service.validate(1, 1, MeasurementCode.TEMP, "Cel", now, 1, null));
+    assertThrows(
+        RuntimeException.class,
+        () -> service.validate(1, 1, MeasurementCode.HR, "bpm", now.plusSeconds(1000), 1, null));
+  }
 }

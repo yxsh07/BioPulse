@@ -1,11 +1,105 @@
 package org.biopulse;
-import org.junit.jupiter.api.Test;import static org.junit.jupiter.api.Assertions.*;import java.time.*;import java.util.*;import org.biopulse.domain.*;import org.biopulse.analytics.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.time.*;
+import java.util.*;
+import org.biopulse.analytics.*;
+import org.biopulse.domain.*;
+import org.junit.jupiter.api.Test;
+
 class StatisticsTest {
- private final Instant t=Instant.parse("2026-01-01T00:00:00Z");
- Measurement m(int sec,Double value,QualityFlag q){return new Measurement(sec,"e"+sec,1,1,MeasurementCode.HR,value,"bpm",t.plusSeconds(sec),t,1,null,q);}
- @Test void irregularSeriesRetainsGaps(){var rows=List.of(m(0,10d,QualityFlag.GOOD),m(10,20d,QualityFlag.GOOD),m(40,30d,QualityFlag.GOOD));var s=Statistics.summarize(1,MeasurementCode.HR,rows,t,t.plusSeconds(60),Duration.ofSeconds(10),null,15d,t.plusSeconds(60));assertEquals(20,s.mean());assertEquals(20,s.median());assertEquals(Math.sqrt(200d/3),s.standardDeviation(),1e-9);assertEquals(50,s.availabilityPercent());assertEquals(20,s.thresholdDeviationSeconds());assertEquals(2,s.gaps().size());assertFalse(s.fresh());assertEquals(0.4615384615,s.slopePerSecond(),1e-8);}
- @Test void missingDoesNotBecomeZero(){var s=Statistics.summarize(1,MeasurementCode.HR,List.of(m(0,null,QualityFlag.MISSING)),t,t.plusSeconds(30),Duration.ofSeconds(10),null,null,t);assertNull(s.mean());assertNull(s.minimum());assertEquals(0,s.count());assertEquals(0,s.availabilityPercent());assertEquals(30,s.gaps().getFirst().seconds());}
- @Test void explicitMissingEndsCoverage(){var s=Statistics.summarize(1,MeasurementCode.HR,List.of(m(0,10d,QualityFlag.GOOD),m(5,null,QualityFlag.MISSING)),t,t.plusSeconds(10),Duration.ofSeconds(10),null,null,t);assertEquals(50,s.availabilityPercent());assertFalse(s.fresh());}
- @Test void rollingWindowUsesTime(){var r=Statistics.rollingAverage(List.of(m(0,10d,QualityFlag.GOOD),m(10,20d,QualityFlag.GOOD),m(100,40d,QualityFlag.GOOD)),Duration.ofSeconds(30));assertEquals(15,r.get(1).value());assertEquals(40,r.get(2).value());}
- @Test void baselineIsExplicitlyResearchOnly(){var r=new BaselineAnomalyModel().analyze(List.of(1d,2d,3d,4d,5d),10d,"fixture");assertEquals("RESEARCH_ONLY",r.label());assertTrue(r.score()>4);assertEquals("INCOMPLETE",new BaselineAnomalyModel().analyze(List.of(),null,"fixture").status());}
+  private final Instant t = Instant.parse("2026-01-01T00:00:00Z");
+
+  Measurement m(int sec, Double value, QualityFlag q) {
+    return new Measurement(
+        sec, "e" + sec, 1, 1, MeasurementCode.HR, value, "bpm", t.plusSeconds(sec), t, 1, null, q);
+  }
+
+  @Test
+  void irregularSeriesRetainsGaps() {
+    var rows =
+        List.of(
+            m(0, 10d, QualityFlag.GOOD),
+            m(10, 20d, QualityFlag.GOOD),
+            m(40, 30d, QualityFlag.GOOD));
+    var s =
+        Statistics.summarize(
+            1,
+            MeasurementCode.HR,
+            rows,
+            t,
+            t.plusSeconds(60),
+            Duration.ofSeconds(10),
+            null,
+            15d,
+            t.plusSeconds(60));
+    assertEquals(20, s.mean());
+    assertEquals(20, s.median());
+    assertEquals(Math.sqrt(200d / 3), s.standardDeviation(), 1e-9);
+    assertEquals(50, s.availabilityPercent());
+    assertEquals(20, s.thresholdDeviationSeconds());
+    assertEquals(2, s.gaps().size());
+    assertFalse(s.fresh());
+    assertEquals(0.4615384615, s.slopePerSecond(), 1e-8);
+  }
+
+  @Test
+  void missingDoesNotBecomeZero() {
+    var s =
+        Statistics.summarize(
+            1,
+            MeasurementCode.HR,
+            List.of(m(0, null, QualityFlag.MISSING)),
+            t,
+            t.plusSeconds(30),
+            Duration.ofSeconds(10),
+            null,
+            null,
+            t);
+    assertNull(s.mean());
+    assertNull(s.minimum());
+    assertEquals(0, s.count());
+    assertEquals(0, s.availabilityPercent());
+    assertEquals(30, s.gaps().getFirst().seconds());
+  }
+
+  @Test
+  void explicitMissingEndsCoverage() {
+    var s =
+        Statistics.summarize(
+            1,
+            MeasurementCode.HR,
+            List.of(m(0, 10d, QualityFlag.GOOD), m(5, null, QualityFlag.MISSING)),
+            t,
+            t.plusSeconds(10),
+            Duration.ofSeconds(10),
+            null,
+            null,
+            t);
+    assertEquals(50, s.availabilityPercent());
+    assertFalse(s.fresh());
+  }
+
+  @Test
+  void rollingWindowUsesTime() {
+    var r =
+        Statistics.rollingAverage(
+            List.of(
+                m(0, 10d, QualityFlag.GOOD),
+                m(10, 20d, QualityFlag.GOOD),
+                m(100, 40d, QualityFlag.GOOD)),
+            Duration.ofSeconds(30));
+    assertEquals(15, r.get(1).value());
+    assertEquals(40, r.get(2).value());
+  }
+
+  @Test
+  void baselineIsExplicitlyResearchOnly() {
+    var r = new BaselineAnomalyModel().analyze(List.of(1d, 2d, 3d, 4d, 5d), 10d, "fixture");
+    assertEquals("RESEARCH_ONLY", r.label());
+    assertTrue(r.score() > 4);
+    assertEquals(
+        "INCOMPLETE", new BaselineAnomalyModel().analyze(List.of(), null, "fixture").status());
+  }
 }

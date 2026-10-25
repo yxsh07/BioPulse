@@ -1,3 +1,8 @@
 package org.biopulse.analytics;
-import org.biopulse.domain.WaveformChunk;import java.util.Map;
-public interface SignalAnalyzer { Map<String,Object> analyze(WaveformChunk chunk); }
+
+import java.util.Map;
+import org.biopulse.domain.WaveformChunk;
+
+public interface SignalAnalyzer {
+  Map<String, Object> analyze(WaveformChunk chunk);
+}

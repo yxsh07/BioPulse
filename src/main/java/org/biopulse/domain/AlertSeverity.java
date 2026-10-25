@@ -1,2 +1,7 @@
 package org.biopulse.domain;
-public enum AlertSeverity { INFO, WARNING, CRITICAL }
+
+public enum AlertSeverity {
+  INFO,
+  WARNING,
+  CRITICAL
+}

@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LiveMonitoring</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100;200;300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/tailwindcss">
+      @theme inline {
+        --color-background: var(--background);
+        --color-foreground: var(--foreground);
+        --color-primary: var(--primary);
+        --color-primary-foreground: var(--primary-foreground);
+        --color-secondary: var(--secondary);
+        --color-secondary-foreground: var(--secondary-foreground);
+        --color-muted: var(--muted);
+        --color-muted-foreground: var(--muted-foreground);
+        --color-accent: var(--accent);
+        --color-accent-foreground: var(--accent-foreground);
+        --color-destructive: var(--destructive);
+        --color-destructive-foreground: var(--destructive-foreground);
+        --color-card: var(--card);
+        --color-card-foreground: var(--card-foreground);
+        --color-popover: var(--popover);
+        --color-popover-foreground: var(--popover-foreground);
+        --color-border: var(--border);
+        --color-input: var(--input);
+        --color-ring: var(--ring);
+        --color-chart-1: var(--chart-1);
+        --color-chart-2: var(--chart-2);
+        --color-chart-3: var(--chart-3);
+        --color-chart-4: var(--chart-4);
+        --color-chart-5: var(--chart-5);
+
+        --font-sans: var(--font-sans);
+        --font-heading: var(--font-heading, var(--font-sans));
+        --font-serif: var(--font-serif);
+        --font-mono: var(--font-mono);
+      }
+
+      @theme {
+        --radius-xs: calc(var(--radius) - 8px);
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --radius-xl: calc(var(--radius) + 4px);
+        --radius-2xl: calc(var(--radius) + 8px);
+        --radius-3xl: calc(var(--radius) + 16px);
+        --radius-4xl: calc(var(--radius) + 24px);
+      }
+
+      * {
+        corner-shape: var(--shape, round);
+      }
+
+      .rounded-full,
+      .rounded-none,
+      .rounded-t-full,
+      .rounded-t-none,
+      .rounded-r-full,
+      .rounded-r-none,
+      .rounded-b-full,
+      .rounded-b-none,
+      .rounded-l-full,
+      .rounded-l-none,
+      .rounded-s-full,
+      .rounded-s-none,
+      .rounded-e-full,
+      .rounded-e-none,
+      .rounded-tl-full,
+      .rounded-tl-none,
+      .rounded-tr-full,
+      .rounded-tr-none,
+      .rounded-bl-full,
+      .rounded-bl-none,
+      .rounded-br-full,
+      .rounded-br-none,
+      .rounded-ss-full,
+      .rounded-ss-none,
+      .rounded-se-full,
+      .rounded-se-none,
+      .rounded-es-full,
+      .rounded-es-none,
+      .rounded-ee-full,
+      .rounded-ee-none {
+        corner-shape: round;
+      }
+
+      @utility rounded-* {
+        border-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-t-* {
+        border-top-left-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+        border-top-right-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-r-* {
+        border-top-right-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+        border-bottom-right-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-b-* {
+        border-bottom-right-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+        border-bottom-left-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-l-* {
+        border-top-left-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+        border-bottom-left-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-tl-* {
+        border-top-left-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-tr-* {
+        border-top-right-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-bl-* {
+        border-bottom-left-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-br-* {
+        border-bottom-right-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-s-* {
+        border-start-start-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+        border-end-start-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-e-* {
+        border-start-end-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+        border-end-end-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-ss-* {
+        border-start-start-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-se-* {
+        border-start-end-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-es-* {
+        border-end-start-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+      @utility rounded-ee-* {
+        border-end-end-radius: calc(
+          --value(--radius-*, [length], [percentage]) * var(--shape-multiplier, 1)
+        );
+      }
+
+      @layer base {
+        * {
+          @apply border-border outline-ring/50;
+        }
+        body {
+          @apply bg-background text-foreground font-sans;
+        }
+      }
+
+      :root {
+        --shape: round;
+        --shape-multiplier: 1;
+
+        --background: #0f1417;
+        --foreground: #e8ecef;
+        --primary: #2ba69a;
+        --primary-foreground: #04191a;
+        --secondary: #222a31;
+        --secondary-foreground: #d5dce2;
+        --muted: #1c2329;
+        --muted-foreground: #8a96a1;
+        --accent: #1c2d31;
+        --accent-foreground: #7fd6cc;
+        --destructive: #e5484d;
+        --destructive-foreground: #ffffff;
+        --card: #161c21;
+        --card-foreground: #e8ecef;
+        --popover: #1b2228;
+        --popover-foreground: #e8ecef;
+        --border: #2a333b;
+        --input: #1a2026;
+        --ring: #2ba69a;
+        --chart-1: #3dd68c;
+        --chart-2: #38bdf8;
+        --chart-3: #a78bfa;
+        --chart-4: #f5b942;
+        --chart-5: #64748b;
+
+        --font-sans: "Roboto", sans-serif;
+        --font-heading: "Roboto", sans-serif;
+        --font-serif: "Playfair Display", serif;
+        --font-mono: "JetBrains Mono", monospace;
+
+        --radius: 0.75rem;
+      }
+
+      /* Hide scrollbars */
+      *,
+      *::before,
+      *::after {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+      *::-webkit-scrollbar {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="min-h-screen bg-background text-foreground pb-24">
+      <header
+        class="sticky top-0 z-10 bg-background border-b border-border px-2 h-16 flex items-center gap-1"
+      >
+        <button class="size-10 rounded-full flex items-center justify-center" aria-label="Back">
+          <svg
+            class="size-5"
+            xmlns="http://www.w3.org/2000/svg"
+            width="1em"
+            height="1em"
+            viewBox="0 0 256 256"
+          >
+            <path
+              fill="currentColor"
+              d="M224 128a8 8 0 0 1-8 8H59.31l58.35 58.34a8 8 0 0 1-11.32 11.32l-72-72a8 8 0 0 1 0-11.32l72-72a8 8 0 0 1 11.32 11.32L59.31 120H216a8 8 0 0 1 8 8"
+            ></path>
+          </svg>
+        </button>
+        <div class="flex-1 min-w-0">
+          <h1 class="font-heading text-base font-semibold leading-5">Live monitoring</h1>
+          <p class="text-[11px] uppercase tracking-wider text-muted-foreground truncate">
+            PT-0247 · Ward B / Bed 12 · MON-012
+          </p>
+        </div>
+        <span
+          class="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-foreground"
+          ><svg
+            class="size-3.5"
+            xmlns="http://www.w3.org/2000/svg"
+            width="1em"
+            height="1em"
+            viewBox="0 0 256 256"
+          >
+            <path
+              fill="currentColor"
+              d="M136 80v43.47l36.12 21.67a8 8 0 0 1-8.24 13.72l-40-24A8 8 0 0 1 120 128V80a8 8 0 0 1 16 0m-8-48a95.44 95.44 0 0 0-67.92 28.15C52.81 67.51 46.35 74.59 40 82V64a8 8 0 0 0-16 0v40a8 8 0 0 0 8 8h40a8 8 0 0 0 0-16H49c7.15-8.42 14.27-16.35 22.39-24.57a80 80 0 1 1 1.66 114.75a8 8 0 1 0-11 11.64A96 96 0 1 0 128 32"
+            ></path></svg
+          >Replay</span
+        >
+      </header>
+      <div class="px-4 pt-3 space-y-3">
+        <div class="rounded-[10px] border border-border bg-card p-3">
+          <div class="flex flex-wrap gap-2 text-[10px] uppercase tracking-wider">
+            <span
+              class="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-muted-foreground"
+              ><svg
+                class="size-3.5"
+                xmlns="http://www.w3.org/2000/svg"
+                width="1em"
+                height="1em"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  fill="currentColor"
+                  d="M200 112a8 8 0 0 1-8 8h-40a8 8 0 0 1 0-16h40a8 8 0 0 1 8 8m-8 24h-40a8 8 0 0 0 0 16h40a8 8 0 0 0 0-16m40-80v144a16 16 0 0 1-16 16H40a16 16 0 0 1-16-16V56a16 16 0 0 1 16-16h176a16 16 0 0 1 16 16m-16 144V56H40v144zm-80.26-34a8 8 0 1 1-15.5 4c-2.63-10.26-13.06-18-24.25-18s-21.61 7.74-24.25 18a8 8 0 1 1-15.5-4a39.84 39.84 0 0 1 17.19-23.34a32 32 0 1 1 45.12 0a39.76 39.76 0 0 1 17.2 23.34ZM96 136a16 16 0 1 0-16-16a16 16 0 0 0 16 16"
+                ></path></svg
+              >Synthetic identity</span
+            ><span
+              class="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-muted-foreground"
+              ><svg
+                class="size-3.5"
+                xmlns="http://www.w3.org/2000/svg"
+                width="1em"
+                height="1em"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  fill="currentColor"
+                  d="M56 96v64a8 8 0 0 1-16 0V96a8 8 0 0 1 16 0m32-72a8 8 0 0 0-8 8v192a8 8 0 0 0 16 0V32a8 8 0 0 0-8-8m40 32a8 8 0 0 0-8 8v128a8 8 0 0 0 16 0V64a8 8 0 0 0-8-8m40 32a8 8 0 0 0-8 8v64a8 8 0 0 0 16 0V96a8 8 0 0 0-8-8m40-16a8 8 0 0 0-8 8v96a8 8 0 0 0 16 0V80a8 8 0 0 0-8-8"
+                ></path></svg
+              >Research waveform</span
+            ><span
+              class="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-muted-foreground"
+              ><svg
+                class="size-3.5"
+                xmlns="http://www.w3.org/2000/svg"
+                width="1em"
+                height="1em"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  fill="currentColor"
+                  d="M221.69 199.77L160 96.92V40h8a8 8 0 0 0 0-16H88a8 8 0 0 0 0 16h8v56.92L34.31 199.77A16 16 0 0 0 48 224h160a16 16 0 0 0 13.72-24.23Zm-110.83-96.52a7.93 7.93 0 0 0 1.14-4.11V40h32v59.14a7.93 7.93 0 0 0 1.14 4.11L183.36 167c-12 2.37-29.07 1.37-51.75-10.11c-15.91-8.05-31.05-12.32-45.22-12.81ZM48 208l28.54-47.58c14.25-1.74 30.31 1.85 47.82 10.72c19 9.61 35 12.88 48 12.88a69.9 69.9 0 0 0 19.55-2.7L208 208Z"
+                ></path></svg
+              >Experimental</span
+            >
+          </div>
+          <p class="mt-2 text-xs text-muted-foreground leading-5">
+            REPLAY of recorded data, not live acquisition. Recording 14:00:00–14:08:00 IST.
+          </p>
+        </div>
+        <section class="rounded-[10px] border border-border bg-card p-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Replay position
+              </p>
+              <p class="text-2xl font-semibold tabular-nums">
+                14:04:08<span class="text-sm text-muted-foreground">.000 IST</span>
+              </p>
+            </div>
+            <div class="text-right">
+              <p class="text-[10px] uppercase tracking-wider text-muted-foreground">State</p>
+              <p class="inline-flex items-center gap-1 text-xs font-medium">
+                <svg
+                  class="size-4 text-primary"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="1em"
+                  height="1em"
+                  viewBox="0 0 256 256"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M128 24a104 104 0 1 0 104 104A104.13 104.13 0 0 0 128 24m-16 136a8 8 0 0 1-16 0V96a8 8 0 0 1 16 0Zm48 0a8 8 0 0 1-16 0V96a8 8 0 0 1 16 0Z"
+                  ></path></svg
+                >Paused
+              </p>
+            </div>
+          </div>
+          <div class="mt-3 flex items-center gap-2">
+            <button
+              class="size-11 rounded-full bg-primary text-primary-foreground flex items-center justify-center"
+              aria-label="Play"
+            >
+              <svg
+                class="size-5"
+                xmlns="http://www.w3.org/2000/svg"
+                width="1em"
+                height="1em"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  fill="currentColor"
+                  d="M240 128a15.74 15.74 0 0 1-7.6 13.51L88.32 229.65a16 16 0 0 1-16.2.3A15.86 15.86 0 0 1 64 216.13V39.87a15.86 15.86 0 0 1 8.12-13.82a16 16 0 0 1 16.2.3l144.08 88.14A15.74 15.74 0 0 1 240 128"
+                ></path>
+              </svg></button
+            ><button
+              class="size-11 rounded-full border border-border flex items-center justify-center"
+              aria-label="Step back"
+            >
+              <svg
+                class="size-5"
+                xmlns="http://www.w3.org/2000/svg"
+                width="1em"
+                height="1em"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  fill="currentColor"
+                  d="M199.81 34a16 16 0 0 0-16.24.43L64 109.23V40a8 8 0 0 0-16 0v176a8 8 0 0 0 16 0v-69.23l119.57 74.78A15.95 15.95 0 0 0 208 208.12V47.88A15.86 15.86 0 0 0 199.81 34M192 208L64.16 128L192 48.07Z"
+                ></path>
+              </svg></button
+            ><button
+              class="size-11 rounded-full border border-border flex items-center justify-center"
+              aria-label="Step forward"
+            >
+              <svg
+                class="size-5"
+                xmlns="http://www.w3.org/2000/svg"
+                width="1em"
+                height="1em"
+                viewBox="0 0 256 256"
+              >
+                <path
+                  fill="currentColor"
+                  d="M200 32a8 8 0 0 0-8 8v69.23L72.43 34.45A15.95 15.95 0 0 0 48 47.88v160.24a16 16 0 0 0 24.43 13.43L192 146.77V216a8 8 0 0 0 16 0V40a8 8 0 0 0-8-8M64 207.93V48.05l127.84 80Z"
+                ></path>
+              </svg>
+            </button>
+            <div class="ml-auto flex gap-1 text-xs tabular-nums">
+              <span class="rounded-md border border-border px-2 py-1 text-muted-foreground"
+                >0.5×</span
+              ><span class="rounded-md bg-accent px-2 py-1 font-medium text-accent-foreground"
+                >1×</span
+              ><span class="rounded-md border border-border px-2 py-1 text-muted-foreground"
+                >2×</span
+              >
+            </div>
+          </div>
+          <div class="mt-3">
+            <div class="relative h-2 rounded-full bg-muted border border-border">
+              <div
+                style="width: 52.5%"
+                class="absolute inset-y-0 left-0 rounded-full bg-primary"
+              ></div>
+              <div
+                style="left: calc(52.5% - 8px)"
+                class="absolute top-1/2 -translate-y-1/2 size-4 rounded-full bg-primary border-2 border-background"
+              ></div>
+            </div>
+            <div class="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+              <span>14:00:00</span><span>14:04:10 gap</span><span>14:08:00</span>
+            </div>
+          </div>
+          <p class="mt-2 text-[11px] text-muted-foreground">
+            Paused position retained. Scrubbing stays inside the 8-minute recording.
+          </p>
+        </section>
+        <section class="rounded-[10px] border border-border bg-card divide-y divide-border">
+          <div class="p-3">
+            <div class="flex items-center justify-between">
+              <span class="inline-flex items-center gap-2"
+                ><span
+                  class="rounded-md bg-chart-1/15 border border-chart-1/60 px-1.5 py-0.5 text-[11px] font-bold text-chart-1"
+                  >ECG II</span
+                ><span class="text-[11px] uppercase tracking-wider text-muted-foreground"
+                  >Electrocardiogram</span
+                ></span
+              ><span class="inline-flex items-center gap-1 text-[11px] font-medium text-chart-1"
+                ><svg
+                  class="size-3.5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="1em"
+                  height="1em"
+                  viewBox="0 0 256 256"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24m45.66 85.66l-56 56a8 8 0 0 1-11.32 0l-24-24a8 8 0 0 1 11.32-11.32L112 148.69l50.34-50.35a8 8 0 0 1 11.32 11.32"
+                  ></path></svg
+                >Good</span
+              >
+            </div>
+            <svg
+              style="height: 72px"
+              viewBox="0 0 320 72"
+              class="mt-2 w-full h-18 rounded-md border border-border bg-background"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <pattern id="g1" width="8" height="8" patternUnits="userSpaceOnUse">
+                  <path
+                    d="M8 0H0V8"
+                    fill="none"
+                    stroke="currentColor"
+                    class="text-border"
+                    stroke-width="0.3"
+                  />
+                </pattern>
+              </defs>
+              <rect fill="url(#g1)" width="320" height="72" />
+              <path
+                d="M0 40 L40 40 L46 40 L50 48 L54 12 L58 60 L62 40 L100 40 L140 40 L146 40 L150 48 L154 12 L158 60 L162 40 L200 40 L240 40 L246 40 L250 48 L254 12 L258 60 L262 40 L300 40 L320 40"
+                fill="none"
+                stroke="#3DD68C"
+                stroke-width="1.2"
+              />
+            </svg>
+            <div class="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+              <span>Scale 1 mV / 10 mm</span><span>25 mm/s · 1 s grid</span>
+            </div>
+          </div>
+          <div class="p-3">
+            <div class="flex items-center justify-between">
+              <span class="inline-flex items-center gap-2"
+                ><span
+                  class="rounded-md bg-chart-2/15 border border-chart-2/60 px-1.5 py-0.5 text-[11px] font-bold text-chart-2"
+                  >PPG</span
+                ><span class="text-[11px] uppercase tracking-wider text-muted-foreground"
+                  >Photoplethysmogram</span
+                ></span
+              ><span class="inline-flex items-center gap-1 text-[11px] font-medium text-chart-4"
+                ><svg
+                  class="size-3.5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="1em"
+                  height="1em"
+                  viewBox="0 0 256 256"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M236.8 188.09L149.35 36.22a24.76 24.76 0 0 0-42.7 0L19.2 188.09a23.51 23.51 0 0 0 0 23.72A24.35 24.35 0 0 0 40.55 224h174.9a24.35 24.35 0 0 0 21.33-12.19a23.51 23.51 0 0 0 .02-23.72M120 104a8 8 0 0 1 16 0v40a8 8 0 0 1-16 0Zm8 88a12 12 0 1 1 12-12a12 12 0 0 1-12 12"
+                  ></path></svg
+                >Fair</span
+              >
+            </div>
+            <svg
+              style="height: 72px"
+              viewBox="0 0 320 72"
+              class="mt-2 w-full rounded-md border border-border bg-background"
+              preserveAspectRatio="none"
+            >
+              <rect fill="url(#g1)" width="320" height="72" />
+              <path
+                d="M0 50 C20 50 24 22 36 22 C48 22 52 50 64 50 C76 50 80 24 92 24 C104 24 108 50 120 50 C132 50 136 22 148 22 C160 22 164 50 176 50 C188 50 192 24 204 24 C216 24 220 50 232 50 C244 50 248 22 260 22 C272 22 276 50 288 50 C300 50 304 24 320 24"
+                fill="none"
+                stroke="#38BDF8"
+                stroke-width="1.2"
+              />
+            </svg>
+            <div class="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+              <span>Amplitude normalized (a.u.)</span><span>25 mm/s</span>
+            </div>
+          </div>
+          <div class="p-3">
+            <div class="flex items-center justify-between">
+              <span class="inline-flex items-center gap-2"
+                ><span
+                  class="rounded-md bg-chart-3/15 border border-chart-3/60 px-1.5 py-0.5 text-[11px] font-bold text-chart-3"
+                  >RESP</span
+                ><span class="text-[11px] uppercase tracking-wider text-muted-foreground"
+                  >Respiration impedance</span
+                ></span
+              ><span class="inline-flex items-center gap-1 text-[11px] font-medium text-chart-1"
+                ><svg
+                  class="size-3.5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="1em"
+                  height="1em"
+                  viewBox="0 0 256 256"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24m45.66 85.66l-56 56a8 8 0 0 1-11.32 0l-24-24a8 8 0 0 1 11.32-11.32L112 148.69l50.34-50.35a8 8 0 0 1 11.32 11.32"
+                  ></path></svg
+                >Good</span
+              >
+            </div>
+            <svg
+              style="height: 72px"
+              viewBox="0 0 320 72"
+              class="mt-2 w-full rounded-md border border-border bg-background"
+              preserveAspectRatio="none"
+            >
+              <rect fill="url(#g1)" width="320" height="72" />
+              <path
+                d="M0 36 C30 14 60 14 90 36 C120 58 150 58 180 36 C210 14 240 14 270 36 C300 58 320 50 320 36"
+                fill="none"
+                stroke="#A78BFA"
+                stroke-width="1.2"
+              />
+            </svg>
+            <div class="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+              <span>Ω (relative)</span><span>22 breaths/min</span>
+            </div>
+          </div>
+        </section>
+        <section class="rounded-[10px] border border-border bg-card p-3">
+          <div class="flex items-center justify-between">
+            <h2 class="font-heading text-sm font-semibold">Recording coverage</h2>
+            <span class="text-[11px] tabular-nums text-muted-foreground">14:04:08 marker</span>
+          </div>
+          <div
+            class="relative mt-3 flex h-3 w-full overflow-hidden rounded-sm border border-border"
+          >
+            <div style="width: 52.1%" class="h-full bg-chart-1/70"></div>
+            <div
+              style="width: 3.1%"
+              class="h-full border-x border-dashed border-border bg-muted"
+            ></div>
+            <div style="width: 44.8%" class="h-full bg-chart-1/70"></div>
+          </div>
+          <div class="mt-1 flex justify-between text-[10px] tabular-nums text-muted-foreground">
+            <span>14:00:00</span><span>14:04:10–14:04:25 missing</span><span>14:08:00</span>
+          </div>
+          <div class="mt-2 flex gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <span class="inline-flex items-center gap-1"
+              ><span class="size-2 rounded-sm bg-chart-1/70"></span>Recorded</span
+            ><span class="inline-flex items-center gap-1"
+              ><span class="size-2 rounded-sm border border-dashed border-border bg-muted"></span
+              >Gap</span
+            >
+          </div>
+        </section>
+        <section class="rounded-[10px] border border-dashed border-border bg-card p-3">
+          <div class="flex items-start justify-between">
+            <div>
+              <p
+                class="inline-flex items-center gap-1 rounded-md border border-dashed border-border px-1.5 py-0.5 text-xs font-medium text-muted-foreground"
+              >
+                <svg
+                  class="size-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="1em"
+                  height="1em"
+                  viewBox="0 0 256 256"
+                >
+                  <path
+                    fill="currentColor"
+                    d="M149.66 138.34a8 8 0 0 0-11.32 0L120 156.69L99.31 136l18.35-18.34a8 8 0 0 0-11.32-11.32L88 124.69l-18.34-18.35a8 8 0 0 0-11.32 11.32l6.35 6.34l-23.32 23.31a32 32 0 0 0 0 45.26l5.38 5.37l-28.41 28.4a8 8 0 0 0 11.32 11.32l28.4-28.41l5.37 5.38a32 32 0 0 0 45.26 0L132 191.31l6.34 6.35a8 8 0 0 0 11.32-11.32L131.31 168l18.35-18.34a8 8 0 0 0 0-11.32m-52.29 65a16 16 0 0 1-22.62 0l-22.06-22.09a16 16 0 0 1 0-22.62L76 135.31L120.69 180Zm140.29-185a8 8 0 0 0-11.32 0l-28.4 28.41l-5.37-5.38a32.05 32.05 0 0 0-45.26 0L124 64.69l-6.34-6.35a8 8 0 0 0-11.32 11.32l80 80a8 8 0 0 0 11.32-11.32l-6.35-6.34l23.32-23.31a32 32 0 0 0 0-45.26l-5.38-5.37l28.41-28.4a8 8 0 0 0 0-11.32m-34.35 79L180 120.69L135.31 76l23.32-23.31a16 16 0 0 1 22.62 0l22.06 22a16 16 0 0 1 0 22.68Z"
+                  ></path></svg
+                >Example · Sensor disconnected
+              </p>
+              <p class="mt-2 text-xs text-muted-foreground leading-5">
+                PPG lead disconnected on MON-019. Strip is blank, not interpolated. Not a
+                physiological event.
+              </p>
+            </div>
+            <span class="text-[10px] uppercase tracking-wider text-muted-foreground">Stale</span>
+          </div>
+          <div
+            class="mt-2 h-10 rounded-md border border-dashed border-border bg-background opacity-60"
+          ></div>
+          <p class="mt-2 text-[11px] tabular-nums text-muted-foreground">
+            Last received 13:58:40 IST · values not current
+          </p>
+        </section>
+        <div class="rounded-[10px] border border-border bg-card p-3 flex items-start gap-2">
+          <svg
+            class="size-4 mt-0.5 text-muted-foreground"
+            xmlns="http://www.w3.org/2000/svg"
+            width="1em"
+            height="1em"
+            viewBox="0 0 256 256"
+          >
+            <path
+              fill="currentColor"
+              d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24m0 192a88 88 0 1 1 88-88a88.1 88.1 0 0 1-88 88m16-40a8 8 0 0 1-8 8a16 16 0 0 1-16-16v-40a8 8 0 0 1 0-16a16 16 0 0 1 16 16v40a8 8 0 0 1 8 8m-32-92a12 12 0 1 1 12 12a12 12 0 0 1-12-12"
+            ></path>
+          </svg>
+          <p class="text-xs text-muted-foreground leading-5">
+            Signal quality is reported by the device per channel: Good, Fair or Poor. Quality is not
+            a diagnosis.
+          </p>
+        </div>
+      </div>
+      <nav
+        class="fixed bottom-0 inset-x-0 border-t border-border bg-background grid grid-cols-4 h-16"
+      >
+        <a
+          class="flex flex-col items-center justify-center gap-1 text-muted-foreground text-[11px] font-medium"
+          ><svg
+            class="size-5"
+            xmlns="http://www.w3.org/2000/svg"
+            width="1em"
+            height="1em"
+            viewBox="0 0 256 256"
+          >
+            <path
+              fill="currentColor"
+              d="M104 40H56a16 16 0 0 0-16 16v48a16 16 0 0 0 16 16h48a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16m0 64H56V56h48zm96-64h-48a16 16 0 0 0-16 16v48a16 16 0 0 0 16 16h48a16 16 0 0 0 16-16V56a16 16 0 0 0-16-16m0 64h-48V56h48zm-96 32H56a16 16 0 0 0-16 16v48a16 16 0 0 0 16 16h48a16 16 0 0 0 16-16v-48a16 16 0 0 0-16-16m0 64H56v-48h48zm96-64h-48a16 16 0 0 0-16 16v48a16 16 0 0 0 16 16h48a16 16 0 0 0 16-16v-48a16 16 0 0 0-16-16m0 64h-48v-48h48z"
+            ></path></svg
+          >Overview</a
+        ><a
+          class="flex flex-col items-center justify-center gap-1 text-primary text-[11px] font-medium"
+          ><svg
+            class="size-5"
+            xmlns="http://www.w3.org/2000/svg"
+            width="1em"
+            height="1em"
+            viewBox="0 0 256 256"
+          >
+            <path
+              fill="currentColor"
+              d="M164.47 195.63a8 8 0 0 1-6.7 12.37H10.23a8 8 0 0 1-6.7-12.37a95.83 95.83 0 0 1 47.22-37.71a60 60 0 1 1 66.5 0a95.83 95.83 0 0 1 47.22 37.71m87.91-.15a95.87 95.87 0 0 0-47.13-37.56A60 60 0 0 0 144.7 54.59a4 4 0 0 0-1.33 6a75.83 75.83 0 0 1 3.63 89.94a4 4 0 0 0 1.07 5.53a112.3 112.3 0 0 1 29.85 30.83a23.92 23.92 0 0 1 3.65 16.47a4 4 0 0 0 3.95 4.64h60.3a8 8 0 0 0 7.73-5.93a8.22 8.22 0 0 0-1.17-6.59"
+            ></path></svg
+          >Patients</a
+        ><a
+          class="flex flex-col items-center justify-center gap-1 text-muted-foreground text-[11px] font-medium"
+          ><svg
+            class="size-5"
+            xmlns="http://www.w3.org/2000/svg"
+            width="1em"
+            height="1em"
+            viewBox="0 0 256 256"
+          >
+            <path
+              fill="currentColor"
+              d="M221.8 175.94c-5.55-9.56-13.8-36.61-13.8-71.94a80 80 0 1 0-160 0c0 35.34-8.26 62.38-13.81 71.94A16 16 0 0 0 48 200h40.81a40 40 0 0 0 78.38 0H208a16 16 0 0 0 13.8-24.06M128 216a24 24 0 0 1-22.62-16h45.24A24 24 0 0 1 128 216m-80-32c7.7-13.24 16-43.92 16-80a64 64 0 1 1 128 0c0 36.05 8.28 66.73 16 80Z"
+            ></path></svg
+          >Alerts</a
+        ><a
+          class="flex flex-col items-center justify-center gap-1 text-muted-foreground text-[11px] font-medium"
+          ><svg
+            class="size-5"
+            xmlns="http://www.w3.org/2000/svg"
+            width="1em"
+            height="1em"
+            viewBox="0 0 256 256"
+          >
+            <path
+              fill="currentColor"
+              d="M128 24a104 104 0 1 0 104 104A104.11 104.11 0 0 0 128 24M74.08 197.5a64 64 0 0 1 107.84 0a87.83 87.83 0 0 1-107.84 0M96 120a32 32 0 1 1 32 32a32 32 0 0 1-32-32m97.76 66.41a79.66 79.66 0 0 0-36.06-28.75a48 48 0 1 0-59.4 0a79.66 79.66 0 0 0-36.06 28.75a88 88 0 1 1 131.52 0"
+            ></path></svg
+          >Profile</a
+        >
+      </nav>
+    </div>
+  </body>
+</html>
