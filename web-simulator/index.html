@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111111">
+  <title>BioPulse · Device simulator</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./simulator.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">◈</span> BIOPULSE <span class="brand-sub">/ SIMULATOR</span></div>
+    <div class="health"><span id="health-dot" class="dot"></span><span id="health">Checking backend</span></div>
+  </header>
+  <main>
+    <section class="heading">
+      <div><div class="eyebrow">ACADEMIC RESEARCH · OPERATOR CONSOLE</div><h1>Device simulator</h1><p>BIDMC patient-wise replay · original recording offsets remain separate from receipt time</p></div>
+      <div class="clock"><span class="eyebrow">SOURCE CLOCK</span><strong id="clock">—</strong><small id="clock-note">Select a recording</small></div>
+    </section>
+    <div id="notice" class="notice" role="status"></div>
+    <section id="login-panel" class="panel login-panel">
+      <div><div class="eyebrow">SECURE ACCESS</div><h2>Sign in to control replay</h2></div>
+      <form id="login-form"><label>Username<input id="username" autocomplete="username" required></label><label>Password<input id="password" type="password" autocomplete="current-password" required></label><button type="submit">Sign in</button></form>
+    </section>
+    <div id="workspace" hidden>
+      <section class="setup-grid">
+        <div class="panel"><div class="panel-head"><div><span class="eyebrow">01 / SOURCE</span><h2>Research recording</h2></div><span class="tag">BIDMC CSV</span></div>
+          <label>Dataset<select id="dataset"><option value="BIDMC">BIDMC PPG and Respiration 1.0.0</option></select></label>
+          <label>Recording<select id="recording"><option value="">Select recording</option></select></label>
+          <div id="source-detail" class="detail">Only recordings imported into the shared backend appear here.</div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><span class="eyebrow">02 / SUBJECT</span><h2>Patient association</h2></div></div>
+          <label>Active admission<select id="admission"><option value="">Select admission</option></select></label>
+          <p class="detail">A BIDMC pseudonym and a demo admission are separate identities. Their association is artificial and shown in the source provenance.</p>
+          <div id="patient-detail" class="detail"></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><span class="eyebrow">03 / SESSION</span><h2>Replay controls</h2></div><span id="state" class="state">NO SESSION</span></div>
+          <label>Monitoring session<select id="session"><option value="">Create or select session</option></select></label>
+          <label>Playback speed<select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="5">5×</option><option value="10">10×</option></select></label>
+          <div class="controls"><button id="create">Create</button><button id="start" class="secondary">Start</button><button id="pause" class="secondary">Pause</button><button id="resume" class="secondary">Resume</button><button id="stop" class="danger">Stop</button></div>
+          <p class="detail">Speed is fixed when a session is created. Reaching the recording end completes the session; replay does not silently loop.</p>
+        </div>
+      </section>
+      <section class="status-grid">
+        <div class="panel"><div class="panel-head"><div><span class="eyebrow">DEVICE CONNECTION</span><h2>Visible devices</h2></div></div><div id="devices" class="device-list">Select an admission.</div></div>
+        <div class="panel"><div class="panel-head"><div><span class="eyebrow">DATA QUALITY / SOURCE</span><h2>Provenance</h2></div></div><div id="provenance" class="detail">Select a recording.</div></div>
+      </section>
+      <section class="wave-grid" aria-label="Live waveforms">
+        <div class="panel wave ecg"><div class="wave-head"><div><span class="eyebrow">ECG · SELECTED SOURCE LEAD</span><h2>Electrocardiogram</h2></div><span id="ecg-quality" class="quality">WAITING</span></div><canvas id="ecg" width="900" height="150" aria-label="ECG waveform"></canvas><div class="wave-meta"><span>Source: BIDMC · 125 Hz</span><span id="ecg-time">No frame</span></div></div>
+        <div class="panel wave ppg"><div class="wave-head"><div><span class="eyebrow">PLETH · PPG</span><h2>Photoplethysmogram</h2></div><span id="ppg-quality" class="quality">WAITING</span></div><canvas id="ppg" width="900" height="150" aria-label="PPG waveform"></canvas><div class="wave-meta"><span>Source: BIDMC · 125 Hz</span><span id="ppg-time">No frame</span></div></div>
+        <div class="panel wave resp"><div class="wave-head"><div><span class="eyebrow">IMPEDANCE RESPIRATION</span><h2>Respiratory waveform</h2></div><span id="resp-quality" class="quality">WAITING</span></div><canvas id="resp" width="900" height="150" aria-label="Respiratory waveform"></canvas><div class="wave-meta"><span>Source: BIDMC · 125 Hz</span><span id="resp-time">No frame</span></div></div>
+      </section>
+      <section class="panel"><div class="panel-head"><div><span class="eyebrow">NUMERIC OBSERVATIONS</span><h2>Vital signs</h2></div><span class="detail">Missing is never zero</span></div><div id="vitals" class="vitals"></div></section>
+      <section class="lower-grid">
+        <div class="panel"><div class="panel-head"><div><span class="eyebrow">INGESTION / EVENT LOG</span><h2>Live events</h2></div></div><ol id="events" class="events"></ol></div>
+        <div class="panel"><div class="panel-head"><div><span class="eyebrow">SESSION HISTORY</span><h2>Recent sessions</h2></div></div><div id="history" class="history"></div></div>
+      </section>
+    </div>
+  </main>
+  <nav class="bottom-nav" aria-label="Simulator sections"><a href="#workspace">OVERVIEW</a><a href="#devices">DEVICES</a><a href="#vitals">SIGNALS</a><a href="#history">HISTORY</a></nav>
+</body>
+</html>
