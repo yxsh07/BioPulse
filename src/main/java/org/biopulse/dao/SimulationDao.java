@@ -15,4 +15,6 @@ public interface SimulationDao {
   boolean state(long id, SimulatorState expected, SimulatorState next);
 
   void cursor(long id, Instant at, SimulatorState state);
+
+  List<Long> recordedDeviceIds(long recordingId);
 }

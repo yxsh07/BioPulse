@@ -124,12 +124,22 @@ public class JdbcAlertDao implements AlertDao {
   }
 
   public void event(long id, String actor, String action) {
+    Instant occurred = Instant.now();
+    if ("ACKNOWLEDGED".equals(action))
+      sql.update(
+          "UPDATE alerts SET acknowledged_at=?,acknowledged_by=(SELECT id FROM users WHERE"
+              + " username=?) WHERE id=? AND acknowledged_at IS NULL",
+          occurred,
+          actor,
+          id);
     sql.insert(
-        "INSERT INTO alert_events(alert_id,actor,action,occurred_at) VALUES(?,?,?,?)",
+        "INSERT INTO alert_events(alert_id,actor,action,occurred_at,actor_user_id)"
+            + " VALUES(?,?,?,?,(SELECT id FROM users WHERE username=?))",
         id,
         actor,
         action,
-        Instant.now());
+        occurred,
+        actor);
   }
 
   public List<AlertEvent> events(long id) {

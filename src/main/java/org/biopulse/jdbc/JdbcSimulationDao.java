@@ -75,4 +75,13 @@ public class JdbcSimulationDao implements SimulationDao {
         Instant.now(),
         id);
   }
+
+  public List<Long> recordedDeviceIds(long recordingId) {
+    return sql.query(
+        "SELECT device_id FROM measurements WHERE recording_id=? UNION SELECT device_id FROM"
+            + " waveform_chunks WHERE recording_id=? ORDER BY device_id",
+        r -> r.getLong(1),
+        recordingId,
+        recordingId);
+  }
 }
