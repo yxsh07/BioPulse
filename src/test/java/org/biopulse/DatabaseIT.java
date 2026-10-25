@@ -323,6 +323,7 @@ class DatabaseIT {
   @Test
   @Transactional
   void auditPagingReadsCanonicalLogAndAuthorizedDeviceListingFiltersInSql() {
+    sql.update("DELETE FROM audit_logs");
     String marker = "AUDIT-FIXTURE-" + UUID.randomUUID();
     audit.append("admin@biopulse.local", marker + "-1", "fixture", "one");
     audit.append("admin@biopulse.local", marker + "-2", "fixture", "two");

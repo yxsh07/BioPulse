@@ -8,6 +8,7 @@ Executed on 25 October 2026.
 | JUnit/Mockito unit tests | 22 passed; one published-dataset test skipped because BIDMC files were not supplied |
 | JDBC + API integration tests against isolated MySQL 8.0.46 | 12 passed; zero skipped, all six shared Flyway migrations enabled |
 | GitHub Actions MySQL 8.4 Testcontainers integration | Passed |
+| Local Docker Engine 29 + Testcontainers 1.21.4 MySQL 8.4 integration | 14 passed; zero skipped; 25 unit tests (one optional dataset test skipped) |
 | Frontend production build | Passed |
 | Desktop and phone Chromium workflows against the real API | 4 passed |
 | OpenAPI 3.0 contract validation | Passed with Swagger Parser |
@@ -16,7 +17,7 @@ Executed on 25 October 2026.
 
 CI evidence for commit `2172e9b`: https://github.com/yxsh07/BioPulse/actions/runs/40204125487 — successful. The run includes the default Docker/Testcontainers path, frontend build and all four browser scenarios.
 
-Local Docker's Linux engine could not be reached. Attempting to start the Windows Docker service was rejected by automatic approval review, with no reason beyond a policy block. Local testing therefore used a separate MySQL process and dedicated databases on port 3307. The existing MySQL Windows service and its data were left alone. Testcontainers was verified on GitHub's Linux runner.
+Local Docker Desktop 29.0.1 is reachable. Testcontainers 1.21.3 pinned Docker API 1.32, which Engine 29 rejects because its minimum supported API is 1.44; Testcontainers 1.21.4 negotiates 1.44 and falls back to 1.32 for older engines. The default Testcontainers MySQL 8.4 path now passes locally. The separate MySQL 8.0.46 process on port 3307 remains available for `TEST_DB_*` runs but is no longer required. The existing MySQL Windows service and its data were left alone.
 
 The browser scenarios cover secure login/logout, patient selection, honest missing measurements, waveform rendering, historical analytics, WebSocket connection, replay create/start/pause/stop, alert timeline and acknowledgment, report generation and CSV download, directory search and local theme preferences. Unit and API tests additionally cover numerical/missing-data behavior, fractional threshold gaps, duplicate transaction rollback, version conflicts, ward and role restrictions, CSRF, source provenance and session-invalidated sockets.
 
