@@ -10,6 +10,7 @@ WORKDIR /build
 COPY pom.xml ./
 RUN mvn -q dependency:go-offline
 COPY src ./src
+COPY database ./database
 COPY --from=frontend /ui/dist/ ./src/main/resources/static/
 RUN mvn -q -DskipTests package
 

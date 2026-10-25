@@ -32,7 +32,7 @@ PowerShell, in the repository root:
 
 ```powershell
 $env:JAVA_HOME = 'C:\path\to\jdk-21'
-$env:DB_URL = 'jdbc:mysql://localhost:3306/biopulse?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true'
+$env:DB_URL = 'jdbc:mysql://localhost:3306/biomedical_dashboard?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true'
 $env:DB_USER = 'biopulse'
 $env:DB_PASSWORD = Read-Host 'MySQL password'
 $env:SEED_DEMO = 'true'
@@ -97,7 +97,9 @@ The experimental `AnalysisModel` strategy implements versioned baseline-relative
 
 The opt-in seed mirrors the handoff: twelve identities, ten online/two offline devices, two critical/three warning pre-authored **synthetic workflow events**, and detailed measurements only for Avery R. Other patients do not acquire fabricated measurement histories. Fixture events have `SEEDED_SYNTHETIC_EVENT` timeline entries and are not claimed to have been generated from the sparse cohort data. The waveform fixture is eight minutes with a 15-second omitted span; numerical observations have their own cadence mask. The recording also contains a terminal spot snapshot, so metadata includes one extra second to retain half-open API semantics. Historical data is visibly labeled historical/stale.
 
-Replay reads stored source rows, writes a separate simulation source/recording that references its origin, and preserves observation times. Its transactional cursor advances only after successful scalar and waveform ingestion. Playback speed advances recorded seconds per scheduler tick; this is an educational scheduler, not an acquisition-grade real-time clock. Recorded devices must be assigned to the target admission. A failed tick retains the cursor and logs the error; pause/stop, repair the assignment or data problem, then resume. There is no synthetic fallback when input is absent.
+Replay reads stored source rows, writes a separate simulation source/recording that references its origin, and preserves observation times. Its transactional cursor advances only after successful scalar and waveform ingestion. A monotonic clock advances the selected source interval at 0.5, 1, 2, 5 or 10 times real time; each tick processes at most ten source seconds before catching up on later ticks. This is an educational scheduler, not an acquisition-grade real-time clock. Recorded devices must be assigned to the target admission. A failed tick retains the cursor and logs the error; pause/stop, repair the assignment or data problem, then resume. There is no synthetic fallback when input is absent.
+
+To import an optional [BIDMC CSV recording](https://physionet.org/content/bidmc/1.0.0/), put the published files in a directory outside the repository and set `BIOPULSE_BIDMC_DATASET_ROOT` to its absolute path on the server. An ADMIN calls `POST /api/v1/datasets/bidmc/import` with a `bidmc_##` recording ID, ECG lead (`II`, `V` or `AVR`), active admission ID, and assigned device IDs keyed by the available measurement codes. The browser never supplies a file path. The import is transactional, preserves source-relative timing under a documented synthetic timestamp anchor, and returns 409 for a repeated recording ID. Historical import does not create live alerts; replay emits them through the normal ingestion path. See the [simulator contract](docs/SIMULATOR_CONTRACT.md) for channel and provenance limits.
 
 Reports are stored immutable CSV snapshots for one admission or one authorized ward. Downloads recheck current authorization. Exports include the requested window, declared aggregation policy, numerical statistics, availability, explicit missing ranges and source IDs. Native PDF generation and clinical signing are not implemented.
 
@@ -111,7 +113,7 @@ Reports are stored immutable CSV snapshots for one admission or one authorized w
 | `analytics`, `alerts` | Statistical strategies and deterministic persistence rules |
 | `simulation`, `reporting` | Recorded sources/import interface, scheduler and CSV strategy |
 | `security`, `websocket`, `config`, `exception` | Access scopes, transport, wiring and errors |
-| `src/main/resources/db/migration` | MySQL schema migrations |
+| `database/migrations` | Shared MySQL schema migrations, packaged into Flyway's classpath location |
 | `frontend/src` | Responsive Framer-based application and REST/WebSocket client |
 | `design/framer` | Preserved source reference and original render gallery |
 

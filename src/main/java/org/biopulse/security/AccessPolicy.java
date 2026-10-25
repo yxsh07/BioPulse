@@ -1,16 +1,19 @@
 package org.biopulse.security;
 
-import org.biopulse.jdbc.Sql;
+import org.biopulse.dao.AccessDao;
+import org.biopulse.dao.AuditDao;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 @Component
 public class AccessPolicy {
-  private final Sql sql;
+  private final AccessDao access;
+  private final AuditDao audit;
 
-  public AccessPolicy(Sql sql) {
-    this.sql = sql;
+  public AccessPolicy(AccessDao access, AuditDao audit) {
+    this.access = access;
+    this.audit = audit;
   }
 
   public String actor() {
@@ -25,54 +28,35 @@ public class AccessPolicy {
   }
 
   public boolean canAdmission(String actor, long id) {
-    return !sql.query(
-            "SELECT a.id FROM admissions a JOIN beds b ON b.id=a.bed_id JOIN users u ON"
-                + " u.username=? LEFT JOIN user_wards uw ON uw.user_id=u.id AND"
-                + " uw.ward_id=b.ward_id WHERE a.id=? AND u.enabled=TRUE AND (u.role='ADMIN' OR"
-                + " uw.ward_id IS NOT NULL)",
-            r -> r.getLong(1),
-            actor,
-            id)
-        .isEmpty();
+    return access.canAdmission(actor, id);
+  }
+
+  public boolean canPatient(long id) {
+    return access.canPatient(actor(), id);
+  }
+
+  public boolean canWard(long id) {
+    return access.canWard(actor(), id);
   }
 
   public void admission(long id) {
     if (!canAdmission(actor(), id)) throw new AccessDeniedException("Admission scope");
   }
 
-  public void ward(long id) {
-    if (!admin()
-        && sql.query(
-                "SELECT uw.ward_id FROM user_wards uw JOIN users u ON u.id=uw.user_id WHERE"
-                    + " u.username=? AND uw.ward_id=?",
-                r -> r.getLong(1),
-                actor(),
-                id)
-            .isEmpty()) throw new AccessDeniedException("Ward scope");
-  }
-
-  public boolean canPatient(long id) {
-    return admin()
-        || !sql.query(
-                "SELECT a.id FROM admissions a JOIN beds b ON b.id=a.bed_id JOIN user_wards uw ON"
-                    + " uw.ward_id=b.ward_id JOIN users u ON u.id=uw.user_id WHERE a.patient_id=?"
-                    + " AND u.username=?",
-                r -> r.getLong(1),
-                id,
-                actor())
-            .isEmpty();
-  }
-
   public void patient(long id) {
     if (!canPatient(id)) throw new AccessDeniedException("Patient scope");
   }
 
+  public void ward(long id) {
+    if (!canWard(id)) throw new AccessDeniedException("Ward scope");
+  }
+
   public void audit(String action, String resource) {
-    sql.insert(
-        "INSERT INTO audit_events(actor,action,resource,occurred_at) VALUES(?,?,?,?)",
+    int delimiter = resource.indexOf(':');
+    audit.append(
         actor(),
         action,
-        resource,
-        java.time.Instant.now());
+        delimiter < 0 ? "resource" : resource.substring(0, delimiter),
+        delimiter < 0 ? resource : resource.substring(delimiter + 1));
   }
 }

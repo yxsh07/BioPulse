@@ -177,7 +177,7 @@ export function Monitoring({ admission, setAdmission, admin }) {
                   value={speed}
                   onChange={(e) => setSpeed(Number(e.target.value))}
                 >
-                  {[0.5, 1, 2, 4].map((x) => (
+                  {[0.5, 1, 2, 5, 10].map((x) => (
                     <option key={x} value={x}>
                       {x}×
                     </option>

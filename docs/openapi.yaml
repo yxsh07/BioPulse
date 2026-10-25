@@ -2848,7 +2848,7 @@
     },
     "/api/v1/internal/simulator/measurements": {
       "post": {
-        "summary": "Atomic batch ingest, 1\u20131000 observations (ADMIN)",
+        "summary": "Atomic batch ingest, 1–1000 observations (ADMIN)",
         "operationId": "post_api_v1_internal_simulator_measurements",
         "responses": {
           "200": {
@@ -3907,6 +3907,47 @@
         },
         "parameters": [],
         "security": []
+      }
+    },
+    "/api/v1/datasets/bidmc/import": {
+      "post": {
+        "summary": "Import a published BIDMC CSV recording from the configured server dataset root",
+        "operationId": "importBidmcRecording",
+        "description": "ADMIN only. Source-relative offsets are stored using a documented synthetic timestamp anchor. Repeated source recording IDs return 409. Historical import does not publish live readings or alerts.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BidmcImportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imported recording metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidmcImportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dataset root unavailable or source files invalid"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "ADMIN role and CSRF required"
+          },
+          "409": {
+            "description": "Recording ID already imported"
+          }
+        }
       }
     }
   },
@@ -5287,6 +5328,11 @@
           },
           "status": {
             "type": "string"
+          },
+          "inferenceDurationMicros": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         },
         "required": [
@@ -5296,7 +5342,8 @@
           "score",
           "inferredAt",
           "provenance",
-          "status"
+          "status",
+          "inferenceDurationMicros"
         ]
       },
       "Analytics": {
@@ -5488,6 +5535,81 @@
           },
           "hasNext": {
             "type": "boolean"
+          }
+        }
+      },
+      "BidmcImportRequest": {
+        "type": "object",
+        "required": [
+          "recordingId",
+          "ecgLead",
+          "admissionId",
+          "devices"
+        ],
+        "properties": {
+          "recordingId": {
+            "type": "string",
+            "pattern": "^bidmc_\\d{2}$",
+            "example": "bidmc_01"
+          },
+          "ecgLead": {
+            "type": "string",
+            "enum": [
+              "II",
+              "V",
+              "AVR"
+            ]
+          },
+          "admissionId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1
+          },
+          "devices": {
+            "type": "object",
+            "description": "Assigned device IDs keyed by available measurement code (ECG, PPG, RESP, HR, PULSE, RR, SPO2).",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "BidmcImportResult": {
+        "type": "object",
+        "required": [
+          "sourceId",
+          "recordingId",
+          "sourceRecordingId",
+          "originalSubjectPseudonym",
+          "waveformChunks",
+          "numericObservations",
+          "durationSeconds"
+        ],
+        "properties": {
+          "sourceId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "recordingId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sourceRecordingId": {
+            "type": "string"
+          },
+          "originalSubjectPseudonym": {
+            "type": "string"
+          },
+          "waveformChunks": {
+            "type": "integer"
+          },
+          "numericObservations": {
+            "type": "integer"
+          },
+          "durationSeconds": {
+            "type": "number"
           }
         }
       }

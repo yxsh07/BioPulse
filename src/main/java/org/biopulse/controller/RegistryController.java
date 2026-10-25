@@ -24,6 +24,9 @@ public class RegistryController {
   private final DeviceService devices;
   private final AccessPolicy access;
   private final Sql sql;
+  private final PatientDao patientDao;
+  private final AdmissionDao admissionDao;
+  private final DeviceDao deviceDao;
 
   public RegistryController(
       RegistryDao dao,
@@ -31,31 +34,29 @@ public class RegistryController {
       AdmissionService admissions,
       DeviceService devices,
       AccessPolicy access,
-      Sql sql) {
+      Sql sql,
+      PatientDao patientDao,
+      AdmissionDao admissionDao,
+      DeviceDao deviceDao) {
     this.dao = dao;
     this.patients = patients;
     this.admissions = admissions;
     this.devices = devices;
     this.access = access;
     this.sql = sql;
+    this.patientDao = patientDao;
+    this.admissionDao = admissionDao;
+    this.deviceDao = deviceDao;
   }
 
   @GetMapping("/patients")
   public Page<Patient> patients(
       @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
       @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
-    var ids =
-        sql.query(
-            "SELECT p.id FROM patients p WHERE (? OR EXISTS(SELECT 1 FROM admissions a JOIN beds b"
-                + " ON b.id=a.bed_id JOIN user_wards uw ON uw.ward_id=b.ward_id JOIN users u ON"
-                + " u.id=uw.user_id WHERE a.patient_id=p.id AND u.username=?)) ORDER BY p.id LIMIT"
-                + " ? OFFSET ?",
-            r -> r.getLong(1),
-            access.admin(),
-            access.actor(),
-            size + 1,
-            page * size);
-    return Page.of(ids.stream().map(id -> dao.patient(id).orElseThrow()).toList(), page, size);
+    return Page.of(
+        patientDao.pageAuthorized(access.actor(), access.admin(), page * size, size + 1),
+        page,
+        size);
   }
 
   @GetMapping("/patients/{id}")
@@ -73,17 +74,10 @@ public class RegistryController {
   public Page<Admission> admissions(
       @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
       @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
-    var ids =
-        sql.query(
-            "SELECT a.id FROM admissions a JOIN beds b ON b.id=a.bed_id WHERE (? OR EXISTS(SELECT 1"
-                + " FROM user_wards uw JOIN users u ON u.id=uw.user_id WHERE uw.ward_id=b.ward_id"
-                + " AND u.username=?)) ORDER BY a.id LIMIT ? OFFSET ?",
-            r -> r.getLong(1),
-            access.admin(),
-            access.actor(),
-            size + 1,
-            page * size);
-    return Page.of(ids.stream().map(id -> dao.admission(id).orElseThrow()).toList(), page, size);
+    return Page.of(
+        admissionDao.pageAuthorized(access.actor(), access.admin(), page * size, size + 1),
+        page,
+        size);
   }
 
   @GetMapping("/admissions/{id}")
@@ -99,16 +93,13 @@ public class RegistryController {
 
   @GetMapping("/devices")
   public List<MedicalDevice> devices() {
-    if (access.admin()) return dao.devices();
-    var ids =
-        sql.query(
-            "SELECT DISTINCT d.id FROM devices d JOIN device_assignments da ON da.device_id=d.id"
-                + " JOIN admissions a ON a.id=da.admission_id JOIN beds b ON b.id=a.bed_id JOIN"
-                + " user_wards uw ON uw.ward_id=b.ward_id JOIN users u ON u.id=uw.user_id WHERE"
-                + " u.username=? ORDER BY d.id",
-            r -> r.getLong(1),
-            access.actor());
-    return ids.stream().map(id -> dao.device(id).orElseThrow()).toList();
+    return deviceDao.all().stream()
+        .filter(
+            d ->
+                access.admin()
+                    || deviceDao.assignmentHistory(d.id()).stream()
+                        .anyMatch(a -> access.canAdmission(access.actor(), a.admissionId())))
+        .toList();
   }
 
   @PostMapping("/devices")
@@ -125,18 +116,7 @@ public class RegistryController {
 
   @GetMapping("/wards")
   public List<Ward> wards() {
-    return dao.wards().stream()
-        .filter(
-            w ->
-                access.admin()
-                    || !sql.query(
-                            "SELECT uw.ward_id FROM user_wards uw JOIN users u ON u.id=uw.user_id"
-                                + " WHERE uw.ward_id=? AND u.username=?",
-                            r -> r.getLong(1),
-                            w.id(),
-                            access.actor())
-                        .isEmpty())
-        .toList();
+    return dao.wards().stream().filter(w -> access.canWard(w.id())).toList();
   }
 
   @GetMapping("/beds")

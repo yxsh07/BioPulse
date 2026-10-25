@@ -1,11 +1,12 @@
 package org.biopulse.service;
 
 import java.util.List;
+import org.biopulse.dao.AdmissionDao;
 import org.biopulse.dao.ReportDao;
+import org.biopulse.domain.Admission;
 import org.biopulse.domain.Report;
 import org.biopulse.dto.Requests.ReportCreate;
 import org.biopulse.exception.ApiException;
-import org.biopulse.jdbc.Sql;
 import org.biopulse.reporting.ReportGenerator;
 import org.biopulse.security.AccessPolicy;
 import org.springframework.stereotype.Service;
@@ -14,13 +15,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ReportService {
   private final ReportDao dao;
-  private final Sql sql;
+  private final AdmissionDao admissions;
   private final ReportGenerator generator;
   private final AccessPolicy access;
 
-  public ReportService(ReportDao dao, Sql sql, ReportGenerator generator, AccessPolicy access) {
+  public ReportService(
+      ReportDao dao, AdmissionDao admissions, ReportGenerator generator, AccessPolicy access) {
     this.dao = dao;
-    this.sql = sql;
+    this.admissions = admissions;
     this.generator = generator;
     this.access = access;
   }
@@ -36,12 +38,7 @@ public class ReportService {
       ids = List.of(r.admissionId());
     } else {
       access.ward(r.wardId());
-      ids =
-          sql.query(
-              "SELECT a.id FROM admissions a JOIN beds b ON b.id=a.bed_id WHERE b.ward_id=? ORDER"
-                  + " BY a.id",
-              x -> x.getLong(1),
-              r.wardId());
+      ids = admissions.allInWard(r.wardId()).stream().map(Admission::id).toList();
     }
     Report report = dao.create(r, access.actor(), generator.generate(ids, r.from(), r.to()));
     access.audit("GENERATE_REPORT", "report:" + report.id());

@@ -10,8 +10,13 @@ public interface AnalysisModel {
       Map<String, Double> inputFeatures,
       Double score,
       Instant inferredAt,
+      long inferenceDurationMicros,
       String provenance,
-      String status) {}
+      String status) {
+    public Result {
+      inputFeatures = Map.copyOf(inputFeatures);
+    }
+  }
 
   Result analyze(List<Double> baseline, Double value, String provenance);
 }

@@ -12,6 +12,7 @@ import {
   go,
 } from "./components";
 import { Signals } from "./signals";
+import { useAdmissionStream } from "./live";
 export function AdmissionSelect({ admission, setAdmission }) {
   const s = useData(() =>
     Promise.all([api("/admissions?size=100"), api("/patients?size=100")]),
@@ -291,10 +292,12 @@ export function Patient({ admission, setAdmission }) {
     ]);
     return { a, latest, p: await api("/patients/" + a.patientId) };
   }, [admission]);
+  const connection = useAdmissionStream(admission, () => s.reload());
   return (
     <>
       <div className="toolbar">
         <AdmissionSelect admission={admission} setAdmission={setAdmission} />
+        <Status state={connection} />
         <button onClick={s.reload}>
           <RefreshCw size={14} />
           Refresh

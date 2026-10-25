@@ -46,6 +46,14 @@ X-XSRF-TOKEN: {{csrf}}
 
 {"admissionId":1,"recordingId":1,"speed":1}
 
+### Optional BIDMC CSV import; configure BIOPULSE_BIDMC_DATASET_ROOT on the server first.
+### IDs must refer to capable devices assigned to this active admission.
+POST {{base}}/datasets/bidmc/import
+Content-Type: application/json
+X-XSRF-TOKEN: {{csrf}}
+
+{"recordingId":"bidmc_01","ecgLead":"II","admissionId":1,"devices":{"ECG":1,"PPG":2,"RESP":3,"HR":1,"PULSE":2,"RR":3,"SPO2":2}}
+
 ### Start
 POST {{base}}/simulation-sessions/1/start
 X-XSRF-TOKEN: {{csrf}}

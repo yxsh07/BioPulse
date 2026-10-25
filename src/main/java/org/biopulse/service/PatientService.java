@@ -1,6 +1,6 @@
 package org.biopulse.service;
 
-import org.biopulse.dao.RegistryDao;
+import org.biopulse.dao.PatientDao;
 import org.biopulse.domain.Patient;
 import org.biopulse.dto.Requests.PatientCreate;
 import org.biopulse.exception.ApiException;
@@ -10,23 +10,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PatientService {
-  private final RegistryDao dao;
+  private final PatientDao dao;
   private final AccessPolicy access;
 
-  public PatientService(RegistryDao dao, AccessPolicy access) {
+  public PatientService(PatientDao dao, AccessPolicy access) {
     this.dao = dao;
     this.access = access;
   }
 
   public Patient get(long id) {
-    Patient p = dao.patient(id).orElseThrow(() -> ApiException.missing("Patient"));
+    Patient p = dao.find(id).orElseThrow(() -> ApiException.missing("Patient"));
     access.patient(id);
     return p;
   }
 
   @Transactional
   public Patient create(PatientCreate r) {
-    Patient p = dao.createPatient(r);
+    Patient p = dao.create(r);
     access.audit("CREATE_PATIENT", "patient:" + p.id());
     return p;
   }

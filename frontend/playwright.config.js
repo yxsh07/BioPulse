@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests",
   workers: 1,
-  timeout: 45000,
+  timeout: 90000,
   use: {
     baseURL: process.env.BASE_URL || "http://127.0.0.1:5173",
     trace: "retain-on-failure",

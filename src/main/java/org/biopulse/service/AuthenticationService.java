@@ -1,30 +1,26 @@
 package org.biopulse.service;
 
-import org.biopulse.jdbc.Sql;
+import org.biopulse.dao.AccountDao;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AuthenticationService implements UserDetailsService {
-  private final Sql sql;
+  private final AccountDao accounts;
 
-  public AuthenticationService(Sql sql) {
-    this.sql = sql;
+  public AuthenticationService(AccountDao accounts) {
+    this.accounts = accounts;
   }
 
   public UserDetails loadUserByUsername(String username) {
-    return sql
-        .query(
-            "SELECT * FROM users WHERE username=?",
-            r ->
-                User.withUsername(r.getString("username"))
-                    .password(r.getString("password_hash"))
-                    .roles(r.getString("role"))
-                    .disabled(!r.getBoolean("enabled"))
-                    .build(),
-            username)
-        .stream()
-        .findFirst()
-        .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+    var account =
+        accounts
+            .findByUsername(username)
+            .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
+    return User.withUsername(account.username())
+        .password(account.passwordHash())
+        .roles(account.role().name())
+        .disabled(!account.enabled())
+        .build();
   }
 }

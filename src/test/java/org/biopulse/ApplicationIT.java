@@ -6,6 +6,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.*;
 import java.util.*;
 import org.biopulse.dao.*;
@@ -13,17 +15,21 @@ import org.biopulse.domain.*;
 import org.biopulse.dto.Requests.*;
 import org.biopulse.jdbc.Sql;
 import org.biopulse.service.*;
+import org.biopulse.simulation.bidmc.BidmcImportService;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.*;
+import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest(
     properties = {"biopulse.seed-demo=true", "biopulse.demo-password=IntegrationOnlyPassword!"})
@@ -60,6 +66,7 @@ class ApplicationIT {
   @Autowired Sql sql;
   @Autowired ObjectMapper json;
   @Autowired SimulationService simulations;
+  @Autowired BidmcImportService bidmc;
 
   @Test
   void healthAndAuthentication() throws Exception {
@@ -221,5 +228,113 @@ class ApplicationIT {
     mvc.perform(post("/api/v1/patients").contentType(MediaType.APPLICATION_JSON).content("{}"))
         .andExpect(status().isForbidden());
     mvc.perform(get("/api/v1/patients").param("size", "-1")).andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @WithMockUser(username = "admin@biopulse.local", roles = "ADMIN")
+  void explicitMissingIsTheLatestRecordedState() throws Exception {
+    var source =
+        registry.createSource(
+            new SourceCreate(
+                "Latest-state regression",
+                SourceType.DEVICE,
+                "Unit fixture; recorded missing observation must override prior valid value"));
+    var at = Instant.now().minusSeconds(2).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+    ingestion.ingest(
+        List.of(
+            new Observation(
+                UUID.randomUUID().toString(),
+                1,
+                1,
+                MeasurementCode.PULSE,
+                82d,
+                "bpm",
+                at.minusSeconds(1),
+                source.id(),
+                null,
+                QualityFlag.GOOD),
+            new Observation(
+                UUID.randomUUID().toString(),
+                1,
+                1,
+                MeasurementCode.PULSE,
+                null,
+                "bpm",
+                at,
+                source.id(),
+                null,
+                QualityFlag.MISSING)));
+    mvc.perform(get("/api/v1/admissions/1/measurements/latest"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$[?(@.metric == 'PULSE')].quality")
+                .value(org.hamcrest.Matchers.contains("MISSING")))
+        .andExpect(
+            jsonPath("$[?(@.metric == 'PULSE')].value")
+                .value(org.hamcrest.Matchers.contains(org.hamcrest.Matchers.nullValue())));
+  }
+
+  @Test
+  @Transactional
+  @WithMockUser(username = "admin@biopulse.local", roles = "ADMIN")
+  void bidmcImportPreservesMissingValuesAndRejectsDuplicateId(@TempDir Path folder)
+      throws Exception {
+    String id = "bidmc_97";
+    Files.writeString(
+        folder.resolve(id + "_Fix.txt"),
+        id + "\nSignals sampling frequency: 125 Hz\nNumerics sampling frequency: 1 Hz\n"
+            + "MIMIC II matched wdb ID: research-pseudonym\n");
+    var signal = new StringBuilder("Time [s], RESP, PLETH, II\n");
+    for (int i = 0; i < 250; i++)
+      signal.append(i / 125.0).append(",0.2,0.3,0.4\n");
+    Files.writeString(folder.resolve(id + "_Signals.csv"), signal);
+    Files.writeString(
+        folder.resolve(id + "_Numerics.csv"),
+        "Time [s], HR, PULSE, RESP, SpO2\n0,94,93,25,97\n1,,92,26,96\n");
+
+    long ward = sql.insert("INSERT INTO wards(name) VALUES(?)", "Import " + UUID.randomUUID());
+    long bed = sql.insert("INSERT INTO beds(ward_id,label) VALUES(?,'1')", ward);
+    long patient =
+        registry.createPatient(new PatientCreate("B" + UUID.randomUUID(), "Import fixture", null))
+            .id();
+    long admission = registry.createAdmission(new AdmissionCreate(patient, bed)).id();
+    long ecg = registry.createDevice(new DeviceCreate("ECG-" + UUID.randomUUID(), "ECG")).id();
+    long ox = registry.createDevice(new DeviceCreate("OX-" + UUID.randomUUID(), "OXIMETER")).id();
+    long resp =
+        registry.createDevice(new DeviceCreate("RESP-" + UUID.randomUUID(), "RESPIRATORY"))
+            .id();
+    for (long device : List.of(ecg, ox, resp))
+      registry.assign(new AssignmentCreate(device, admission));
+    var devices =
+        Map.of(
+            MeasurementCode.ECG, ecg,
+            MeasurementCode.HR, ecg,
+            MeasurementCode.PPG, ox,
+            MeasurementCode.PULSE, ox,
+            MeasurementCode.SPO2, ox,
+            MeasurementCode.RESP, resp,
+            MeasurementCode.RR, resp);
+
+    var result = bidmc.importRecording(folder, id, "II", admission, devices);
+    assertEquals(8, result.numericObservations());
+    assertEquals("research-pseudonym", result.originalSubjectPseudonym());
+    assertEquals(6, result.waveformChunks());
+    var recorded =
+        measurements.recordingMeasurements(
+            result.recordingId(),
+            BidmcImportService.RELATIVE_ANCHOR,
+            BidmcImportService.RELATIVE_ANCHOR.plusSeconds(2),
+            100);
+    assertEquals(8, recorded.size());
+    assertTrue(
+        recorded.stream()
+            .anyMatch(
+                m ->
+                    m.metric() == MeasurementCode.HR
+                        && m.quality() == QualityFlag.MISSING
+                        && m.value() == null));
+    assertThrows(
+        DataIntegrityViolationException.class,
+        () -> bidmc.importRecording(folder, id, "II", admission, devices));
   }
 }
