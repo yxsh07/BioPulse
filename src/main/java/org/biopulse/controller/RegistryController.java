@@ -7,7 +7,6 @@ import org.biopulse.dao.*;
 import org.biopulse.domain.*;
 import org.biopulse.dto.*;
 import org.biopulse.dto.Requests.*;
-import org.biopulse.jdbc.Sql;
 import org.biopulse.security.AccessPolicy;
 import org.biopulse.service.*;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,10 +22,10 @@ public class RegistryController {
   private final AdmissionService admissions;
   private final DeviceService devices;
   private final AccessPolicy access;
-  private final Sql sql;
   private final PatientDao patientDao;
   private final AdmissionDao admissionDao;
   private final DeviceDao deviceDao;
+  private final AuditDao auditDao;
 
   public RegistryController(
       RegistryDao dao,
@@ -34,19 +33,19 @@ public class RegistryController {
       AdmissionService admissions,
       DeviceService devices,
       AccessPolicy access,
-      Sql sql,
       PatientDao patientDao,
       AdmissionDao admissionDao,
-      DeviceDao deviceDao) {
+      DeviceDao deviceDao,
+      AuditDao auditDao) {
     this.dao = dao;
     this.patients = patients;
     this.admissions = admissions;
     this.devices = devices;
     this.access = access;
-    this.sql = sql;
     this.patientDao = patientDao;
     this.admissionDao = admissionDao;
     this.deviceDao = deviceDao;
+    this.auditDao = auditDao;
   }
 
   @GetMapping("/patients")
@@ -93,13 +92,7 @@ public class RegistryController {
 
   @GetMapping("/devices")
   public List<MedicalDevice> devices() {
-    return deviceDao.all().stream()
-        .filter(
-            d ->
-                access.admin()
-                    || deviceDao.assignmentHistory(d.id()).stream()
-                        .anyMatch(a -> access.canAdmission(access.actor(), a.admissionId())))
-        .toList();
+    return deviceDao.allAuthorized(access.actor(), access.admin());
   }
 
   @PostMapping("/devices")
@@ -156,19 +149,20 @@ public class RegistryController {
       @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
       @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
     return Page.of(
-        sql.query(
-            "SELECT * FROM audit_events ORDER BY occurred_at DESC,id DESC LIMIT ? OFFSET ?",
-            r ->
-                new AuditEvent(
-                    r.getLong("id"),
-                    r.getString("actor"),
-                    r.getString("action"),
-                    r.getString("resource"),
-                    Sql.instant(r, "occurred_at")),
-            size + 1,
-            page * size),
+        auditDao.page(page * size, size + 1).stream()
+            .map(RegistryController::auditEvent)
+            .toList(),
         page,
         size);
+  }
+
+  private static AuditEvent auditEvent(AuditDao.Entry entry) {
+    String resource =
+        "legacy_resource".equals(entry.entityType())
+            ? entry.entityId()
+            : entry.entityType() + ":" + entry.entityId();
+    return new AuditEvent(
+        entry.id(), entry.actor(), entry.action(), resource, entry.occurredAt());
   }
 
   @PostMapping("/devices/{id}/status")

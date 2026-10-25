@@ -35,7 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
     properties = {"biopulse.seed-demo=true", "biopulse.demo-password=IntegrationOnlyPassword!"})
 @AutoConfigureMockMvc
 class ApplicationIT {
-  static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");
+  static MySQLContainer<?> mysql =
+      new MySQLContainer<>("mysql:8.4").withCommand("--log-bin-trust-function-creators=1");
 
   @DynamicPropertySource
   static void db(DynamicPropertyRegistry r) {
@@ -94,6 +95,31 @@ class ApplicationIT {
                         result.getRequest().getSession()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].code").value("PT-0247"));
+  }
+
+  @Test
+  @WithMockUser(username = "admin@biopulse.local", roles = "ADMIN")
+  void auditEndpointReadsCanonicalLog() throws Exception {
+    String marker = "AUDIT-API-" + UUID.randomUUID();
+    sql.insert(
+        "INSERT INTO audit_logs(actor,action,entity_type,entity_id) VALUES(?,?,?,?)",
+        "api-test",
+        marker,
+        "fixture",
+        "42");
+    var body =
+        json.readTree(
+            mvc.perform(get("/api/v1/audit").param("size", "100"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    var entry =
+        java.util.stream.StreamSupport.stream(body.get("items").spliterator(), false)
+            .filter(item -> marker.equals(item.get("action").asText()))
+            .findFirst();
+    assertTrue(entry.isPresent());
+    assertEquals("fixture:42", entry.orElseThrow().get("resource").asText());
   }
 
   @Test

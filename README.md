@@ -28,6 +28,8 @@ Demo accounts (all use your runtime `DEMO_PASSWORD`):
 
 Prerequisites: **JDK 21**, MySQL **8.0.16+** or **8.4**, Node **22.12+** (24 supported). Maven Wrapper downloads Maven 3.9.11; global Maven is unnecessary. Set `JAVA_HOME` to JDK 21. Create a dedicated UTF-8 database and application user with privileges for Flyway migrations.
 
+The shared migrations create MySQL triggers. On servers with binary logging enabled, the database administrator must enable `log_bin_trust_function_creators=1` for migration, or use an appropriately privileged migration account. The application runtime account should not receive broad server privileges solely for this setting.
+
 PowerShell, in the repository root:
 
 ```powershell
