@@ -21,4 +21,20 @@ Local Docker Desktop 29.0.1 is reachable. Testcontainers 1.21.3 pinned Docker AP
 
 The browser scenarios cover secure login/logout, patient selection, honest missing measurements, waveform rendering, historical analytics, WebSocket connection, replay create/start/pause/stop, alert timeline and acknowledgment, report generation and CSV download, directory search and local theme preferences. Unit and API tests additionally cover numerical/missing-data behavior, fractional threshold gaps, duplicate transaction rollback, version conflicts, ward and role restrictions, CSRF, source provenance and session-invalidated sockets.
 
+## Simulator console end-to-end (26 October 2026)
+
+The operator console was exercised in headless Chromium against a fresh MySQL 8.4 container, a seeded demo admission, and a **generated** 60-second BIDMC-format fixture. This used the ADMIN import route, a `MULTI` device assigned to the admission, and does not claim validation against the full published recording.
+
+| Check | Result |
+| --- | --- |
+| Administrator sign-in, catalog and import mapping | Passed; seven channels mapped to capable visible devices |
+| BIDMC import through `POST /api/v1/datasets/bidmc/import` | Passed; 180 waveform chunks and 244 numeric observations, recording selected automatically |
+| Session create/start at 10× | Passed; replay events rendered ECG/PPG/respiration canvas frames and numeric vital cards |
+| Pause/resume and completion | Passed; cursor resumed monotonically and session reached `COMPLETED` at source end |
+| Provenance | Passed; output source type `SIMULATION`, output recording references original recording/source |
+| Browser console errors and failed requests | None |
+| JavaScript syntax (`node --check web-simulator/simulator.js`) | Passed |
+
+The generated fixture is under ignored `.tools/` and is not committed. The optional published `bidmc_01` full-count test still skips because the local dataset download is incomplete; import/replay behavior against the complete published CSV set remains unverified.
+
 The combined Java verification above used the committed shared DAO layer and six Flyway migrations. The ADMIN `/audit` route now reads the canonical `audit_logs` table through `AuditDao.page`, and an API regression asserts that new audit writes appear there with reconstructed `entityType:entityId` resources. Device listing now applies ward authorization in SQL through `DeviceDao.allAuthorized`. The BIDMC import regression tested a short generated CSV fixture through the actual MySQL DAOs; the published full dataset was unavailable locally, so its optional count check skipped. CI run `40220130647` verified these latest shared-schema commits, including the MySQL trigger path under binary logging. Physical device transport, native Android/JavaFX clients, clinical validation, NEWS2, trained ML, PDF signing and hosted deployment are not claimed.

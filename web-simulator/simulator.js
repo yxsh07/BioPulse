@@ -4,6 +4,8 @@ const apiOrigin = new URLSearchParams(location.search).get('api') ||
 const storageKey = 'biopulse-simulator-sessions-v1';
 const metrics = {HR:['Heart rate','bpm'],PULSE:['Pulse rate','bpm'],SPO2:['Oxygen saturation','%'],RR:['Respiratory rate','breaths/min'],SBP:['Systolic pressure','mmHg'],DBP:['Diastolic pressure','mmHg'],TEMP:['Temperature','Cel']};
 const colors = {ECG:'#8bd8a4',PPG:'#86cce1',RESP:'#c4b0e7'};
+const importCodes = ['ECG','PPG','RESP','HR','PULSE','RR','SPO2'];
+const capabilities = {ECG:['ECG','HR'],OXIMETER:['PPG','PULSE','SPO2'],RESPIRATORY:['RESP','RR'],NIBP:['SBP','DBP'],TEMPERATURE:['TEMP'],MULTI:['ECG','PPG','RESP','HR','PULSE','SPO2','RR','SBP','DBP','TEMP']};
 let csrf = '', sources = [], recordings = [], admissions = [], devices = [], selectedSession = null;
 let socket = null, reconnectTimer = null, heartbeatTimer = null, seen = new Set();
 let history = [];
@@ -64,7 +66,7 @@ async function renderAdmission() {
     catch(e) { $('patient-detail').textContent=`Admission ${id} · ${e.message}`; }
   }
   renderDevices(); renderHistory(); closeSocket(); if(id) connectSocket(id);
-  if(id) refreshVitals().catch(e=>log(e.message));
+  if(id&&!selectedSession) refreshVitals().catch(e=>log(e.message));
   updateControls();
 }
 function renderDevices() {
@@ -77,7 +79,59 @@ function renderDevices() {
     const state=document.createElement('span');state.textContent=d.online?'ONLINE':'OFFLINE';
     row.append(name,state);$('devices').append(row);
   }
-  const note=document.createElement('p');note.className='detail';note.textContent='Device assignment to this admission is validated by the backend when replay ingests data.';$('devices').append(note);
+  const note=document.createElement('p');note.className='detail';note.textContent='Device assignment to this admission is validated by the backend when importing and replaying data.';$('devices').append(note);
+}
+function importMetricSelect(metric) {
+  return document.querySelector(`#import-devices select[data-metric="${metric}"]`);
+}
+function renderImportDevices() {
+  const host=$('import-devices'), current={};
+  host.querySelectorAll('select').forEach(s=>{current[s.dataset.metric]=s.value});
+  host.replaceChildren();
+  if (!devices.length) {
+    const note=document.createElement('p');note.className='detail';note.textContent='No visible devices. Register and assign capable devices before importing.';host.append(note);return;
+  }
+  for (const metric of importCodes) {
+    const capable=devices.filter(d=>(capabilities[d.adapterType]||[]).includes(metric));
+    const label=document.createElement('label');label.textContent=`${metric} device`;
+    const select=document.createElement('select');select.dataset.metric=metric;
+    if (!capable.length) option(select,'',`No ${metric}-capable device`);
+    else for (const d of capable) option(select,d.id,`${d.serial} A� ${d.adapterType}${d.online?'':' (offline)'}`);
+    if (current[metric]&&capable.some(d=>String(d.id)===current[metric])) select.value=current[metric];
+    label.append(select);host.append(label);
+  }
+}
+function importDeviceMap() {
+  const map={};
+  for (const metric of importCodes) {
+    const value=importMetricSelect(metric)?.value;
+    if (!value) return null;
+    map[metric]=Number(value);
+  }
+  return map;
+}
+function importValid() {
+  return /^bidmc_\d{2}$/.test($('import-id').value.trim())&&!!selectedAdmission()&&!!importDeviceMap();
+}
+async function importRecording() {
+  const recordingId=$('import-id').value.trim(), admissionId=selectedAdmission(), map=importDeviceMap();
+  if (!recordingId||!admissionId||!map) {notice('Select an admission and map every import channel to a device.');return;}
+  const button=$('import'), label=button.textContent;
+  button.disabled=true;button.textContent='Importing...';
+  $('import-detail').textContent=`Importing ${recordingId} on the server. Large recordings can take a while.`;
+  try {
+    const result=await post('/datasets/bidmc/import',{recordingId,ecgLead:$('import-lead').value,admissionId,devices:map});
+    await loadCatalog();
+    selectedSession=null;renderSession();
+    $('admission').value=String(admissionId);
+    $('recording').value=String(result.recordingId);
+    renderRecording();await renderAdmission();
+    const summary=`Imported ${result.sourceRecordingId}: ${result.waveformChunks} waveform chunks, ${result.numericObservations} numeric observations, ${Number(result.durationSeconds).toFixed(1)} s. Subject ${result.originalSubjectPseudonym}.`;
+    $('import-detail').textContent=summary;notice(summary);log(summary);$('import-id').value='';
+  } catch(e) {
+    notice(`Import failed: ${e.message}`);
+    $('import-detail').textContent=`Import failed for ${recordingId}. Confirm the CSV set exists under the server dataset root and that each mapped device is assigned to admission ${admissionId}.`;
+  } finally {button.textContent=label;updateControls();}
 }
 function renderHistory() {
   $('session').replaceChildren();option($('session'),'','Create or select session');$('history').replaceChildren();
@@ -103,6 +157,7 @@ async function chooseSession(id) {
   if(!id) {selectedSession=null;updateControls();return;}
   try {
     selectedSession=await request(`/simulation-sessions/${id}`);
+    clearVitals();
     $('admission').value=String(selectedSession.admissionId);
     $('recording').value=String(selectedSession.recordingId);
     $('speed').value=String(selectedSession.speed);
@@ -123,11 +178,12 @@ function updateControls() {
   $('create').disabled=!selectedAdmission()||!selectedRecording();
   $('start').disabled=state!=='CREATED';$('pause').disabled=state!=='RUNNING';
   $('resume').disabled=state!=='PAUSED';$('stop').disabled=!['CREATED','RUNNING','PAUSED'].includes(state);
+  $('import').disabled=!importValid();
 }
 async function createSession() {
   try {
     const session=await post('/simulation-sessions',{admissionId:selectedAdmission(),recordingId:selectedRecording(),speed:Number($('speed').value)});
-    selectedSession=session;remember(session);renderSession();notice(`Created session ${session.id}.`);
+    selectedSession=session;clearVitals();remember(session);renderSession();notice(`Created session ${session.id}.`);
   } catch(e) {notice(`Create failed: ${e.message}`);}
 }
 async function action(name) {
@@ -152,7 +208,7 @@ function draw(metric,samples) {
   samples.forEach((v,i)=>{const x=i/(samples.length-1||1)*canvas.width,y=canvas.height-12-(v-lo)/span*(canvas.height-24);i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();
 }
 function acceptEvent(event) {
-  if(event.type==='CONNECTED'){log('WebSocket connected · refreshing authoritative state');refreshSession();refreshVitals();return;}
+  if(event.type==='CONNECTED'){log('WebSocket connected · refreshing authoritative state');refreshSession();if(!selectedSession)refreshVitals().catch(err=>log(err.message));return;}
   const payload=event.payload||{};
   const key=payload.eventId||event.eventId;
   if(key&&seen.has(key))return;
@@ -163,7 +219,7 @@ function acceptEvent(event) {
     $(id+'-time').textContent=`at ${sourceOffset(payload.observedAt)} · ${payload.samples?.length||0} samples`;
   } else if(event.type==='READING'&&metrics[payload.metric]) {
     updateVital(payload);log(`${payload.metric}: ${payload.value==null?'MISSING':payload.value+' '+payload.unit} · ${payload.quality}`);
-  } else if(event.type==='SIMULATION') {refreshSession();}
+  } else if(event.type==='SIMULATION') {if(payload.state)notice(`Session ${payload.id}: ${payload.state}.`);refreshSession();}
   else if(event.type==='DEVICE_STATUS'){log('Device status changed');loadDevices();}
 }
 function connectSocket(admissionId) {
@@ -184,21 +240,24 @@ function updateVital(m) {
   card.querySelector('small').textContent=`${missing?'MISSING · ':''}${m.unit||metrics[m.metric][1]} · ${sourceOffset(m.observedAt)}`;
 }
 function initVitals(){for(const [code,[name,unit]] of Object.entries(metrics)){const card=document.createElement('div');card.id=`vital-${code}`;card.className='vital missing';card.innerHTML=`<span class="eyebrow">${name.toUpperCase()}</span><strong>—</strong><small>${unit} · no reading</small>`;$('vitals').append(card)}}
+function clearVitals(){for(const [code,[,unit]] of Object.entries(metrics)){const card=$(`vital-${code}`);if(!card)continue;card.classList.add('missing');card.querySelector('strong').textContent='\u2014';card.querySelector('small').textContent=`${unit} \u00b7 no replay reading`}}
 async function refreshVitals(){if(!selectedAdmission())return;const readings=await request(`/admissions/${selectedAdmission()}/measurements/latest`);for(const m of readings)updateVital(m)}
-async function loadDevices(){try{devices=await request('/devices');renderDevices()}catch(e){log(`Devices: ${e.message}`)}}
+async function loadDevices(){try{devices=await request('/devices');renderDevices();renderImportDevices();updateControls()}catch(e){log(`Devices: ${e.message}`)}}
 async function loadCatalog(){
   const [src,rec,adm,dev]=await Promise.all([request('/sources'),request('/recordings'),request('/admissions?size=100'),request('/devices')]);
-  sources=src;recordings=rec;admissions=adm.items||adm.content||[];devices=dev;renderCatalog();
+  sources=src;recordings=rec;admissions=adm.items||adm.content||[];devices=dev;renderCatalog();renderImportDevices();updateControls();
   log(`Loaded ${recordings.length} source recordings and ${admissions.length} admissions.`);
 }
 async function health(){try{const h=await request('/health');$('health').textContent=`Backend ${h.status}`;$('health-dot').className='dot ok'}catch(e){$('health').textContent='Backend unavailable';$('health-dot').className='dot bad'}}
 async function init(){
   initVitals();await health();
   try{const s=await request('/session');if(s.roles?.includes('ROLE_ADMIN')){$('login-panel').hidden=true;$('workspace').hidden=false;await loadCatalog()}else notice('Sign in with an administrator account to control simulator sessions.')}catch(e){notice(`Session: ${e.message}`)}
-  setInterval(()=>{health();refreshSession();if(selectedAdmission())refreshVitals().catch(()=>{})},5000);
+  setInterval(()=>{health();refreshSession();if(selectedAdmission()&&!selectedSession)refreshVitals().catch(()=>{})},5000);
 }
 $('login-form').addEventListener('submit',async e=>{e.preventDefault();try{await post('/session',{username:$('username').value,password:$('password').value});$('password').value='';const session=await request('/session');if(!session.roles?.includes('ROLE_ADMIN'))throw new Error('Administrator role required');$('login-panel').hidden=true;$('workspace').hidden=false;notice('Signed in.');await loadCatalog()}catch(err){notice(`Sign in: ${err.message}`)}});
 $('recording').onchange=renderRecording;$('admission').onchange=renderAdmission;
 $('session').onchange=e=>chooseSession(Number(e.target.value));
+$('import-id').oninput=updateControls;$('import-lead').onchange=updateControls;
+$('import-devices').onchange=updateControls;$('import').onclick=importRecording;
 $('create').onclick=createSession;for(const name of ['start','pause','resume','stop'])$(name).onclick=()=>action(name);
 window.addEventListener('beforeunload',closeSocket);init();

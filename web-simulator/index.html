@@ -42,6 +42,16 @@
           <p class="detail">Speed is fixed when a session is created. Reaching the recording end completes the session; replay does not silently loop.</p>
         </div>
       </section>
+      <section class="panel import-panel">
+        <div class="panel-head"><div><span class="eyebrow">04 / DATASET IMPORT</span><h2>Import BIDMC recording</h2></div><span class="tag">SERVER-SIDE CSV</span></div>
+        <div class="import-grid">
+          <label>Recording ID<input id="import-id" placeholder="bidmc_01" pattern="bidmc_[0-9]{2}" autocomplete="off" spellcheck="false"></label>
+          <label>ECG lead<select id="import-lead"><option value="II">Lead II</option><option value="V">Lead V</option><option value="AVR">Lead AVR</option></select></label>
+        </div>
+        <div id="import-devices" class="mapping-grid"></div>
+        <div class="controls"><button id="import" disabled>Import recording</button></div>
+        <p id="import-detail" class="detail">CSV files must exist under the server's configured BIDMC dataset root. Every channel must map to a capable device assigned to the selected admission. Re-importing the same recording is rejected.</p>
+      </section>
       <section class="status-grid">
         <div class="panel"><div class="panel-head"><div><span class="eyebrow">DEVICE CONNECTION</span><h2>Visible devices</h2></div></div><div id="devices" class="device-list">Select an admission.</div></div>
         <div class="panel"><div class="panel-head"><div><span class="eyebrow">DATA QUALITY / SOURCE</span><h2>Provenance</h2></div></div><div id="provenance" class="detail">Select a recording.</div></div>
