@@ -1,6 +1,7 @@
 const $ = id => document.getElementById(id);
+$('dashboard-link').href = location.pathname.startsWith('/simulator/') ? '/#/patient' : `${location.protocol}//${location.hostname}:5173/#/patient`;
 const apiOrigin = new URLSearchParams(location.search).get('api') ||
-  (location.port === '8080' ? location.origin : `${location.protocol}//${location.hostname}:8080`);
+  (location.port === '8080' || location.pathname.startsWith('/simulator/') ? location.origin : `${location.protocol}//${location.hostname}:8080`);
 const metrics = {HR:['Heart rate','bpm'],PULSE:['Pulse rate','bpm'],SPO2:['Oxygen saturation','%'],RR:['Respiratory rate','breaths/min'],SBP:['Systolic pressure','mmHg'],DBP:['Diastolic pressure','mmHg'],TEMP:['Temperature','Cel']};
 const colors = {ECG:'#8bd8a4',PPG:'#86cce1',RESP:'#c4b0e7'};
 const importCodes = ['ECG','PPG','RESP','HR','PULSE','RR','SPO2'];
@@ -81,6 +82,9 @@ function renderScenario() {
   updateControls();
 }
 function renderRecording() {
+  if(selectedSession && selectedSession.recordingId!==selectedRecording()){
+    selectedSession=null;clearVitals();for(const metric of Object.keys(colors))draw(metric,[]);renderSession();
+  }
   const r=recordingById(selectedRecording()), s=r&&sourceById(r.sourceId), duration=recordingDuration(r);
   $('source-detail').textContent=r ? `Recording ${r.name} · source ID ${r.sourceId} · ${sourceOffset(r.endAt,r)} source duration` : 'Select an imported BIDMC recording.';
   $('provenance').textContent=s ? `${s.provenance} · Data quality follows each received chunk and observation. Display times are offsets from recording start.` : 'Select a recording.';
@@ -97,6 +101,9 @@ function renderRecording() {
 }
 async function renderAdmission() {
   const id=selectedAdmission(), admission=admissions.find(a=>a.id===id);
+  if(selectedSession && selectedSession.admissionId!==id){
+    selectedSession=null;clearVitals();for(const metric of Object.keys(colors))draw(metric,[]);renderSession();
+  }
   $('patient-detail').textContent=admission ? `Admission ${id} · loading patient` : '';
   if (admission) {
     try { const p=await request(`/patients/${admission.patientId}`); $('patient-detail').textContent=`Demo patient ${p.code} · ${p.displayName} · admission ${id}`; }
@@ -208,7 +215,7 @@ async function chooseSession(id) {
     $('scenario-to').value=scenario.toSeconds==null?String(Math.min(10,recordingDuration()).toFixed(2)):String(scenario.toSeconds);
     $('scenario-magnitude').value=scenario.magnitude==null?'20':String(scenario.magnitude);
     renderScenario();
-    await renderAdmission(); cacheSession(selectedSession);renderSession();
+    await renderAdmission(); cacheSession(selectedSession);renderSession();await refreshVitals();
   } catch(e) {notice(`Session ${id}: ${e.message}`);}
 }
 function renderSession() {
@@ -244,7 +251,7 @@ async function refreshSession() {
   try {
     const next=await request(`/simulation-sessions/${selectedSession.id}`);
     if(next.state!==selectedSession.state)log(`Session ${next.id}: ${next.state}`);
-    selectedSession=next;cacheSession(next);renderSession();
+    selectedSession=next;cacheSession(next);renderSession();await refreshVitals();
   } catch(e) {log(`Session refresh: ${e.message}`);}
 }
 function draw(metric,samples) {
@@ -258,6 +265,7 @@ function draw(metric,samples) {
 function acceptEvent(event) {
   if(event.type==='CONNECTED'){log('WebSocket connected · refreshing authoritative state');refreshSession();if(!selectedSession)refreshVitals().catch(err=>log(err.message));return;}
   const payload=event.payload||{};
+  if(selectedSession && ['READING','WAVEFORM'].includes(event.type) && payload.recordingId!==selectedSession.outputRecordingId)return;
   const key=payload.eventId||event.eventId;
   if(key&&seen.has(key))return;
   if(key){seen.add(key);if(seen.size>3000)seen=new Set([...seen].slice(-1500));}
@@ -277,6 +285,7 @@ function connectSocket(admissionId) {
     socket.onmessage=e=>{try{acceptEvent(JSON.parse(e.data))}catch(err){log(`Event parse: ${err.message}`)}};
     socket.onclose=()=>{if(selectedAdmission()===admissionId){log('WebSocket disconnected · reconnecting');reconnectTimer=setTimeout(()=>connectSocket(admissionId),3000)}};
     socket.onerror=()=>{socket?.close()};
+    clearInterval(heartbeatTimer);
     heartbeatTimer=setInterval(()=>{if(socket?.readyState===WebSocket.OPEN)socket.send('ping')},20000);
   } catch(e){log(`WebSocket: ${e.message}`)}
 }
@@ -289,7 +298,14 @@ function updateVital(m) {
 }
 function initVitals(){for(const [code,[name,unit]] of Object.entries(metrics)){const card=document.createElement('div');card.id=`vital-${code}`;card.className='vital missing';card.innerHTML=`<span class="eyebrow">${name.toUpperCase()}</span><strong>—</strong><small>${unit} · no reading</small>`;$('vitals').append(card)}}
 function clearVitals(){for(const [code,[,unit]] of Object.entries(metrics)){const card=$(`vital-${code}`);if(!card)continue;card.classList.add('missing');card.querySelector('strong').textContent='\u2014';card.querySelector('small').textContent=`${unit} \u00b7 no replay reading`}}
-async function refreshVitals(){if(!selectedAdmission())return;const readings=await request(`/admissions/${selectedAdmission()}/measurements/latest`);for(const m of readings)updateVital(m)}
+async function refreshVitals(){
+  const admission=selectedAdmission(), session=selectedSession;
+  if(!admission)return;
+  const filter=session?`?recordingId=${session.outputRecordingId}&at=${encodeURIComponent(session.cursorAt)}`:'';
+  const readings=await request(`/admissions/${admission}/measurements/latest${filter}`);
+  if(admission!==selectedAdmission()||session?.id!==selectedSession?.id)return;
+  clearVitals();for(const m of readings)updateVital(m);
+}
 async function loadDevices(){try{devices=await request('/devices');renderDevices();renderImportDevices();updateControls()}catch(e){log(`Devices: ${e.message}`)}}
 async function loadCatalog(){
   const [src,rec,adm,dev,sessions]=await Promise.all([request('/sources'),request('/recordings'),request('/admissions?size=100'),request('/devices'),request('/simulation-sessions?size=100')]);

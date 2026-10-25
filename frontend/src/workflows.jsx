@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ArrowUpRight,
   ArrowLeft,
@@ -8,7 +8,7 @@ import {
   Plus,
   Shield,
 } from "lucide-react";
-import { api, post, names, stamp, initialRange } from "./api";
+import { api, post, names, stamp } from "./api";
 import {
   useData,
   useAction,
@@ -21,6 +21,7 @@ import {
   go,
 } from "./components";
 import { AdmissionSelect } from "./patients";
+import { useReplay, ReplaySelection } from "./replay";
 function AlertRows({ alerts }) {
   return (
     <div className="event-list">
@@ -53,6 +54,10 @@ export function Alerts({ admin, doctor }) {
     [severity, setSeverity] = useState(""),
     [workflow, setWorkflow] = useState("");
   const s = useData(() => api("/alerts?size=100&page=" + page), [page]);
+  useEffect(() => {
+    const timer = setInterval(s.reload, 5000);
+    return () => clearInterval(timer);
+  }, []);
   return (
     <>
       <div className="toolbar">
@@ -268,14 +273,18 @@ export function AlertDetail({ id }) {
   );
 }
 export function Reports({ admission, setAdmission }) {
-  const [range, setRange] = useState(initialRange),
+  const replay = useReplay();
+  const [customRange, setRange] = useState(null),
     [scope, setScope] = useState("admission"),
     [ward, setWard] = useState(1),
     [page, setPage] = useState(0);
+  useEffect(() => setRange(null), [admission, replay.recordingId]);
+  const range = customRange || replay.range;
   const s = useData(() => api("/reports?page=" + page), [page]),
     a = useAction();
   return (
     <>
+      <ReplaySelection />
       <Panel title="Generate a report" tag="STORED CSV SNAPSHOT">
         <div className="toolbar">
           <label>
@@ -312,6 +321,7 @@ export function Reports({ admission, setAdmission }) {
                 admissionId: scope === "admission" ? admission : null,
                 wardId: scope === "ward" ? ward : null,
                 ...range,
+                recordingId: scope === "admission" ? replay.recordingId : null,
               });
               s.reload();
             })

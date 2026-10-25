@@ -29,6 +29,18 @@ public class AnalyticsService {
       int cadenceSeconds,
       Double low,
       Double high) {
+    return analyze(admission, metric, from, to, cadenceSeconds, low, high, null);
+  }
+
+  public Map<String, Object> analyze(
+      long admission,
+      MeasurementCode metric,
+      Instant from,
+      Instant to,
+      int cadenceSeconds,
+      Double low,
+      Double high,
+      Long recordingId) {
     access.admission(admission);
     range(from, to);
     if (metric.waveform() || cadenceSeconds < 1 || cadenceSeconds > 3600)
@@ -37,7 +49,7 @@ public class AnalyticsService {
         || high != null && !Double.isFinite(high)
         || low != null && high != null && low >= high)
       throw ApiException.bad("Invalid analysis bounds");
-    var rows = dao.history(admission, metric, from, to, 100001, 0);
+    var rows = dao.history(admission, metric, from, to, 100001, 0, recordingId);
     if (rows.size() > 100000)
       throw ApiException.bad("Range exceeds 100000 observations; narrow range");
     var unique = new java.util.TreeMap<Instant, Measurement>();

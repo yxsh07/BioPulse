@@ -42,27 +42,39 @@ public class MonitoringController {
   }
 
   @GetMapping("/admissions/{id}/measurements/latest")
-  public List<Measurement> latest(@PathVariable long id) {
-    return monitoring.latest(id);
+  public List<Measurement> latest(
+      @PathVariable long id,
+      @RequestParam(required = false) @Positive Long recordingId,
+      @RequestParam(required = false) Instant at) {
+    return monitoring.latest(id, recordingId, at);
+  }
+
+  @GetMapping("/admissions/{id}/recordings")
+  public List<MeasurementDao.RecordingView> recordings(@PathVariable long id) {
+    access.admission(id);
+    return dao.recordings(id);
   }
 
   @GetMapping("/admissions/{id}/measurements")
   public Page<Measurement> history(
       @PathVariable long id,
       @RequestParam MeasurementCode metric,
+      @RequestParam(required = false) @Positive Long recordingId,
       @RequestParam Instant from,
       @RequestParam Instant to,
       @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
       @RequestParam(defaultValue = "100") @Min(1) @Max(1000) int size) {
     access.admission(id);
     AnalyticsService.range(from, to);
-    return Page.of(dao.history(id, metric, from, to, size + 1, page * size), page, size);
+    return Page.of(
+        dao.history(id, metric, from, to, size + 1, page * size, recordingId), page, size);
   }
 
   @GetMapping("/admissions/{id}/waveforms")
   public Page<Map<String, Object>> waveforms(
       @PathVariable long id,
       @RequestParam MeasurementCode metric,
+      @RequestParam(required = false) @Positive Long recordingId,
       @RequestParam Instant from,
       @RequestParam Instant to,
       @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
@@ -70,7 +82,7 @@ public class MonitoringController {
     access.admission(id);
     AnalyticsService.range(from, to);
     return Page.of(
-        dao.waveforms(id, metric, from, to, size + 1, page * size).stream()
+        dao.waveforms(id, metric, from, to, size + 1, page * size, recordingId).stream()
             .map(c -> Map.<String, Object>of("chunk", c, "metadata", signal.analyze(c)))
             .toList(),
         page,
@@ -81,12 +93,13 @@ public class MonitoringController {
   public Map<String, Object> analytics(
       @PathVariable long id,
       @RequestParam(defaultValue = "HR") MeasurementCode metric,
+      @RequestParam(required = false) @Positive Long recordingId,
       @RequestParam Instant from,
       @RequestParam Instant to,
       @RequestParam(defaultValue = "10") int cadenceSeconds,
       @RequestParam(required = false) Double low,
       @RequestParam(required = false) Double high) {
-    return analytics.analyze(id, metric, from, to, cadenceSeconds, low, high);
+    return analytics.analyze(id, metric, from, to, cadenceSeconds, low, high, recordingId);
   }
 
   @PostMapping("/internal/simulator/measurements")

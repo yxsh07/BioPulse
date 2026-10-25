@@ -6,7 +6,9 @@ test.beforeEach(async ({ page }) => {
     .poll(
       async () => {
         try {
-          return (await page.request.get("/api/v1/health")).ok();
+          return (
+            await page.request.get("/api/v1/health", { timeout: 3000 })
+          ).ok();
         } catch {
           return false;
         }
@@ -27,12 +29,48 @@ test.beforeEach(async ({ page }) => {
 test("patient workstation, honest missing values, trends, signals and responsive layout", async ({
   page,
 }, testInfo) => {
+  // Select a known recording explicitly: the workstation now follows real replay
+  // history, so previously-created BIDMC or test sessions must not define this test.
+  const recordings = await (
+    await page.request.get("/api/v1/recordings")
+  ).json();
+  const fixture = recordings.find(
+    (r) => r.name === "Eight-minute research fixture",
+  );
+  expect(fixture).toBeTruthy();
+  const identity = await (await page.request.get("/api/v1/session")).json();
+  const created = await page.request.post("/api/v1/simulation-sessions", {
+    headers: { "X-XSRF-TOKEN": identity.csrfToken },
+    data: { admissionId: 1, recordingId: fixture.id, speed: 1 },
+  });
+  expect(created.ok()).toBe(true);
+  const fixtureSession = await created.json();
+  await page.request.post(
+    `/api/v1/simulation-sessions/${fixtureSession.id}/start`,
+    { headers: { "X-XSRF-TOKEN": identity.csrfToken }, data: {} },
+  );
+  await expect
+    .poll(async () => {
+      const session = await (
+        await page.request.get(
+          `/api/v1/simulation-sessions/${fixtureSession.id}`,
+        )
+      ).json();
+      return Date.parse(session.cursorAt) - Date.parse(fixture.startAt);
+    })
+    .toBeGreaterThan(1000);
+  await page.request.post(
+    `/api/v1/simulation-sessions/${fixtureSession.id}/stop`,
+    { headers: { "X-XSRF-TOKEN": identity.csrfToken }, data: {} },
+  );
   await expect(page.getByText("Avery R.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Open Avery R." }).click();
   await expect(
     page.getByRole("heading", { name: "Patient workstation" }),
   ).toBeVisible();
-  await expect(page.getByText("No measurement", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".vital.pulse").getByText("No measurement", { exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("img", { name: "ECG recorded waveform" }),
   ).toBeVisible();

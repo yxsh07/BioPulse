@@ -23,8 +23,9 @@ public class SimulationController {
   @GetMapping
   public Page<SimulationSession> list(
       @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
-      @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
-    return Page.of(service.list(size + 1, page * size), page, size);
+      @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size,
+      @RequestParam(required = false) @Positive Long admissionId) {
+    return Page.of(service.list(size + 1, page * size, admissionId), page, size);
   }
 
   @PostMapping

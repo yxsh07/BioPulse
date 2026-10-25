@@ -17,6 +17,9 @@ public interface SimulationDao {
 
   List<SimulationSession> list(String actor, boolean admin, int limit, int offset);
 
+  List<SimulationSession> list(
+      String actor, boolean admin, int limit, int offset, Long admissionId);
+
   List<Long> running();
 
   boolean state(long id, SimulatorState expected, SimulatorState next);

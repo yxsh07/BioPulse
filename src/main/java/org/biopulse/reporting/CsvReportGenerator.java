@@ -21,12 +21,18 @@ public class CsvReportGenerator implements ReportGenerator {
   }
 
   public String generate(List<Long> admissions, Instant from, Instant to) {
+    return generate(admissions, from, to, null);
+  }
+
+  public String generate(List<Long> admissions, Instant from, Instant to, Long recordingId) {
     StringBuilder out =
         new StringBuilder(
             "RESEARCH_ONLY - educational report; no clinical validation\nWindow,"
                 + from
                 + ","
                 + to
+                + "\nRecording,"
+                + (recordingId == null ? "ALL" : recordingId)
                 + "\n"
                 + "Aggregation,sample-weighted,population SD,coverage uses explicit 10 second"
                 + " cadence\n"
@@ -34,7 +40,7 @@ public class CsvReportGenerator implements ReportGenerator {
     for (long id : admissions)
       for (var metric : MeasurementCode.values()) {
         if (metric.waveform()) continue;
-        var rows = dao.history(id, metric, from, to, 100001, 0);
+        var rows = dao.history(id, metric, from, to, 100001, 0, recordingId);
         if (rows.size() > 100000) throw ApiException.bad("Report range too large");
         var s =
             Statistics.summarize(

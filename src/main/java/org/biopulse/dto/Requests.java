@@ -67,7 +67,15 @@ public final class Requests {
       ScenarioSpec scenario) {}
 
   public record ReportCreate(
-      Long admissionId, Long wardId, @NotNull Instant from, @NotNull Instant to) {}
+      Long admissionId,
+      Long wardId,
+      @NotNull Instant from,
+      @NotNull Instant to,
+      @Positive Long recordingId) {
+    public ReportCreate(Long admissionId, Long wardId, Instant from, Instant to) {
+      this(admissionId, wardId, from, to, null);
+    }
+  }
 
   public record Login(@NotBlank String username, @NotBlank String password) {}
 

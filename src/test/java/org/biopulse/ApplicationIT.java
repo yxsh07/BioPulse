@@ -396,4 +396,118 @@ class ApplicationIT {
         DataIntegrityViolationException.class,
         () -> bidmc.importRecording(folder, id, "II", admission, devices));
   }
+  @Test
+  @Transactional
+  @WithMockUser(username = "admin@biopulse.local", roles = "ADMIN")
+  void recordingScopeDoesNotMixFixturesOrReadAheadOfReplay() throws Exception {
+    var source =
+        registry.createSource(
+            new SourceCreate(
+                "Generated isolation fixture",
+                SourceType.DATASET,
+                "Generated regression fixture; not patient data"));
+    Instant start = Instant.parse("2001-01-01T00:00:00Z");
+    var recording =
+        registry.createRecording(
+            new RecordingCreate(
+                source.id(), "Generated historical recording", start, start.plusSeconds(20)));
+    ingestion.ingest(
+        List.of(
+            new Observation(
+                "scope-test-1",
+                1,
+                1,
+                MeasurementCode.HR,
+                73.0,
+                "bpm",
+                start,
+                source.id(),
+                recording.id(),
+                QualityFlag.GOOD),
+            new Observation(
+                "scope-test-2",
+                1,
+                1,
+                MeasurementCode.HR,
+                88.0,
+                "bpm",
+                start.plusSeconds(10),
+                source.id(),
+                recording.id(),
+                QualityFlag.GOOD)));
+    var other =
+        registry.createRecording(
+            new RecordingCreate(
+                source.id(), "Competing generated fixture", start, start.plusSeconds(20)));
+    ingestion.ingest(
+        List.of(
+            new Observation(
+                "scope-other",
+                1,
+                1,
+                MeasurementCode.HR,
+                140.0,
+                "bpm",
+                start,
+                source.id(),
+                other.id(),
+                QualityFlag.GOOD)));
+    String base = "/api/v1/admissions/1";
+    mvc.perform(
+            get(base + "/measurements/latest")
+                .param("recordingId", "" + recording.id())
+                .param("at", start.toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(1))
+        .andExpect(jsonPath("$[0].value").value(73.0));
+    mvc.perform(
+            get(base + "/measurements")
+                .param("recordingId", "" + recording.id())
+                .param("metric", "HR")
+                .param("from", start.toString())
+                .param("to", start.plusSeconds(20).toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(2));
+    mvc.perform(
+            get(base + "/analytics")
+                .param("recordingId", "" + recording.id())
+                .param("metric", "HR")
+                .param("from", start.toString())
+                .param("to", start.plusSeconds(20).toString()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.summary.mean").value(80.5));
+    mvc.perform(get(base + "/recordings"))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$[?(@.id == " + recording.id() + ")].provenance")
+                .value("Generated regression fixture; not patient data"));
+    mvc.perform(
+            get("/api/v1/admissions/2/measurements/latest")
+                .param("recordingId", "" + recording.id()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(0));
+    mvc.perform(get("/api/v1/admissions/2/recordings"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[?(@.id == " + recording.id() + ")]").isEmpty());
+    var report =
+        mvc.perform(
+                post("/api/v1/reports")
+                    .with(csrf())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        json.writeValueAsString(
+                            new ReportCreate(
+                                1L, null, start, start.plusSeconds(20), recording.id()))))
+            .andExpect(status().isOk())
+            .andReturn();
+    long reportId = json.readTree(report.getResponse().getContentAsString()).get("id").asLong();
+    mvc.perform(get("/api/v1/reports/" + reportId + "/download"))
+        .andExpect(status().isOk())
+        .andExpect(
+            content().string(org.hamcrest.Matchers.containsString("Recording," + recording.id())))
+        .andExpect(
+            content().string(org.hamcrest.Matchers.containsString("1,HR,bpm,2,73.0,88.0,80.5")));
+    mvc.perform(get(base + "/measurements/latest").param("recordingId", "-1"))
+        .andExpect(status().isBadRequest());
+  }
 }

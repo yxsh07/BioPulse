@@ -50,7 +50,7 @@ npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:5173**. Vite proxies API and WebSocket traffic to port 8080. Both `localhost` and `127.0.0.1` development origins are explicitly allowed by default. Environment variables are loaded by the OS/Spring; `.env` is consumed automatically by Compose only.
+Open **http://127.0.0.1:5173**. Vite proxies API, WebSocket and `/simulator` traffic to port 8080. Monitoring and Profile link to the bundled simulator at `/simulator/index.html`, sharing login and backend routing. The workstation follows the newest replay for the selected admission; its selector can pin another session or show latest observations across sources. Source provenance distinguishes generated fixtures from imported research data. Both `localhost` and `127.0.0.1` development origins are explicitly allowed by default. Environment variables are loaded by the OS/Spring; `.env` is consumed automatically by Compose only.
 
 For a bundled JAR, `scripts/build.ps1` or `scripts/build.sh` builds the frontend, runs Maven verification, copies frontend output into the JAR, and packages it. Stop a running JAR before rebuilding on Windows. Start with `java -jar target/biopulse-1.0.0.jar` using the same database environment.
 

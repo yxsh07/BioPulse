@@ -14,6 +14,7 @@ import { Directory, Patient } from "./patients";
 import { Monitoring, Trends } from "./signals";
 import { Alerts, AlertDetail, Reports, Devices, Audit } from "./workflows";
 import "./styles.css";
+import { ReplayProvider } from "./replay";
 const titles = {
   overview: "Command center",
   patients: "Active patients",
@@ -157,6 +158,16 @@ function Profile({ session, onLogout, theme, setTheme }) {
         </p>
       </Panel>
       <Panel title="Connected workspaces">
+        {session.roles.includes("ROLE_ADMIN") && (
+          <a
+            className="button"
+            href="/simulator/index.html"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open simulator console
+          </a>
+        )}
         <div className="toolbar">
           <button onClick={() => go("devices")}>
             Devices
@@ -222,7 +233,7 @@ function App() {
     page = titles[route.page] ? route.page : "overview",
     common = { admission, setAdmission, admin };
   return (
-    <>
+    <ReplayProvider admission={admission}>
       <header>
         <a className="brand" href="#/overview">
           <Activity size={22} />
@@ -317,7 +328,7 @@ function App() {
           </a>
         ))}
       </nav>
-    </>
+    </ReplayProvider>
   );
 }
 createRoot(document.getElementById("root")).render(<App />);

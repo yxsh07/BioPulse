@@ -46,10 +46,4 @@ export const names = {
   PPG: "PPG · Finger",
   RESP: "Respiration",
 };
-export const initialRange = {
-  from: "2026-10-25T08:30:00Z",
-  to: "2026-10-25T08:38:01Z",
-};
 export const query = (r) => new URLSearchParams(r).toString();
-
-export const signalRange = { ...initialRange, to: "2026-10-25T08:30:10Z" };

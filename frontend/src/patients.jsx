@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Search, ArrowUpRight, RefreshCw, Plus } from "lucide-react";
-import { api, post, names, stamp, signalRange } from "./api";
+import { api, post, names, stamp } from "./api";
 import {
   useData,
   useAction,
@@ -12,7 +12,7 @@ import {
   go,
 } from "./components";
 import { Signals } from "./signals";
-import { useAdmissionStream } from "./live";
+import { useReplay, ReplaySelection } from "./replay";
 export function AdmissionSelect({ admission, setAdmission }) {
   const s = useData(() =>
     Promise.all([api("/admissions?size=100"), api("/patients?size=100")]),
@@ -23,6 +23,7 @@ export function AdmissionSelect({ admission, setAdmission }) {
     <label className="inline">
       Admission
       <select
+        aria-label="Admission"
         value={admission}
         onChange={(e) => setAdmission(Number(e.target.value))}
       >
@@ -53,6 +54,10 @@ export function Directory({ admin, overview }) {
       ]),
     [page],
   );
+  useEffect(() => {
+    const timer = setInterval(s.reload, 5000);
+    return () => clearInterval(timer);
+  }, []);
   if (!s.data) return <State {...s} />;
   const [patients, admissions, beds, wards, devices, alerts] = s.data;
   const open = alerts.items.filter((a) => a.state !== "RESOLVED");
@@ -87,7 +92,7 @@ export function Directory({ admin, overview }) {
               [
                 open.filter((a) => a.severity === "WARNING").length,
                 "Warning events",
-                "Deterministic / fixture rules",
+                "Recorded threshold events",
               ],
               [
                 devices.filter((d) => d.online).length + "/" + devices.length,
@@ -285,26 +290,31 @@ function RegistryForms({ beds, reload }) {
   );
 }
 export function Patient({ admission, setAdmission }) {
-  const s = useData(async () => {
-    const [a, latest] = await Promise.all([
-      api("/admissions/" + admission),
-      api(`/admissions/${admission}/measurements/latest`),
-    ]);
-    return { a, latest, p: await api("/patients/" + a.patientId) };
-  }, [admission]);
-  const connection = useAdmissionStream(admission, () => s.reload());
+  const replay = useReplay();
+  const s = useData(
+    async () => {
+      const [a, latest] = await Promise.all([
+        api("/admissions/" + admission),
+        api(`/admissions/${admission}/measurements/latest?${replay.params}`),
+      ]);
+      return { a, latest, p: await api("/patients/" + a.patientId) };
+    },
+    [admission, replay.recordingId],
+    [replay.params, replay.revision],
+  );
   return (
     <>
       <div className="toolbar">
         <AdmissionSelect admission={admission} setAdmission={setAdmission} />
-        <Status state={connection} />
+
         <button onClick={s.reload}>
           <RefreshCw size={14} />
           Refresh
         </button>
       </div>
-      {!s.data ? (
-        <State {...s} />
+      <ReplaySelection />
+      {!replay.ready || !s.data ? (
+        <State {...s} loading={!replay.ready || s.loading} />
       ) : (
         <>
           <Panel
@@ -357,7 +367,12 @@ export function Patient({ admission, setAdmission }) {
               </button>
             ))}
           </div>
-          <Signals admission={admission} range={signalRange} />
+          <Signals
+            admission={admission}
+            range={replay.signalRange}
+            recordingId={replay.recordingId}
+            revision={replay.revision}
+          />
         </>
       )}
     </>

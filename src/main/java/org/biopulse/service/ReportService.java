@@ -40,7 +40,8 @@ public class ReportService {
       access.ward(r.wardId());
       ids = admissions.allInWard(r.wardId()).stream().map(Admission::id).toList();
     }
-    Report report = dao.create(r, access.actor(), generator.generate(ids, r.from(), r.to()));
+    Report report =
+        dao.create(r, access.actor(), generator.generate(ids, r.from(), r.to(), r.recordingId()));
     access.audit("GENERATE_REPORT", "report:" + report.id());
     return report;
   }

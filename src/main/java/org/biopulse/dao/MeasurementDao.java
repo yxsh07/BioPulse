@@ -30,14 +30,45 @@ public interface MeasurementDao {
 
   List<Measurement> latest(long admissionId);
 
+  List<Measurement> latest(long admissionId, Long recordingId, Instant at);
+
+  record RecordingView(
+      long id,
+      long sourceId,
+      String name,
+      Instant startAt,
+      Instant endAt,
+      SourceType sourceType,
+      String provenance) {}
+
+  List<RecordingView> recordings(long admissionId);
+
   /** Latest GOOD/FAIR reading per metric, excluding missing/invalid observations. */
   List<Measurement> latestValid(long admissionId);
 
   List<Measurement> history(
       long admissionId, MeasurementCode metric, Instant from, Instant to, int limit, int offset);
 
+  List<Measurement> history(
+      long admissionId,
+      MeasurementCode metric,
+      Instant from,
+      Instant to,
+      int limit,
+      int offset,
+      Long recordingId);
+
   List<WaveformChunk> waveforms(
       long admissionId, MeasurementCode metric, Instant from, Instant to, int limit, int offset);
+
+  List<WaveformChunk> waveforms(
+      long admissionId,
+      MeasurementCode metric,
+      Instant from,
+      Instant to,
+      int limit,
+      int offset,
+      Long recordingId);
 
   List<Measurement> recordingMeasurements(long recordingId, Instant from, Instant to, int limit);
 

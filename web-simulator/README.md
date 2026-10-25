@@ -2,6 +2,8 @@
 
 This static HTML/CSS/JavaScript console controls the shared Spring Boot backend. It does not contain demo waveform generators or a separate database.
 
+The console is also bundled with the backend at `/simulator/index.html`. Open **Open simulator console** from dashboard monitoring or profile to share the dashboard's origin and login. The dashboard follows the newest replay for its selected admission automatically; its session selector can also pin another session or show latest observations across sources. Source type and provenance identify generated fixtures and historical imports. Replay cards, signals, trends and admission CSV reports filter to the selected output recording.
+
 Run the backend on `http://localhost:8080`, then serve this directory on an allowed origin:
 
 ```powershell

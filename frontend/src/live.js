@@ -35,6 +35,8 @@ export function useAdmissionStream(admission, onEvent) {
           const event = JSON.parse(e.data);
           if (
             event.type === "READING" ||
+            event.type === "WAVEFORM" ||
+            event.type === "SIMULATION" ||
             event.type === "ALERT" ||
             event.type === "DEVICE_STATUS"
           )

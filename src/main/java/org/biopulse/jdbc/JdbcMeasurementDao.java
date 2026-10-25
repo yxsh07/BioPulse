@@ -222,11 +222,42 @@ public class JdbcMeasurementDao implements MeasurementDao {
   }
 
   public List<Measurement> latest(long id) {
+    return latest(id, null, null);
+  }
+
+  public List<Measurement> latest(long id, Long recordingId, Instant at) {
     return sql.query(
         "SELECT * FROM (SELECT m.*,ROW_NUMBER() OVER(PARTITION BY metric ORDER BY observed_at"
-            + " DESC,id DESC) rn FROM measurements m WHERE admission_id=?) ranked WHERE rn=1 ORDER"
-            + " BY metric",
+            + " DESC,id DESC) rn FROM measurements m WHERE admission_id=? AND (? IS NULL OR"
+            + " recording_id=?) AND (? IS NULL OR observed_at<=?)) ranked WHERE rn=1 ORDER BY"
+            + " metric",
         mapper,
+        id,
+        recordingId,
+        recordingId,
+        at,
+        at);
+  }
+
+  public List<RecordingView> recordings(long id) {
+    return sql.query(
+        "SELECT r.*,s.type,s.provenance FROM source_recordings r JOIN data_sources s ON"
+            + " s.id=r.source_id WHERE r.id IN (SELECT recording_id FROM measurements WHERE"
+            + " admission_id=? AND recording_id IS NOT NULL UNION SELECT recording_id FROM"
+            + " waveform_chunks WHERE admission_id=? AND recording_id IS NOT NULL UNION SELECT"
+            + " output_recording_id FROM simulation_sessions WHERE admission_id=?) ORDER BY r.id"
+            + " DESC",
+        r ->
+            new RecordingView(
+                r.getLong("id"),
+                r.getLong("source_id"),
+                r.getString("name"),
+                Sql.instant(r, "start_at"),
+                Sql.instant(r, "end_at"),
+                SourceType.valueOf(r.getString("type")),
+                r.getString("provenance")),
+        id,
+        id,
         id);
   }
 
@@ -241,28 +272,56 @@ public class JdbcMeasurementDao implements MeasurementDao {
 
   public List<Measurement> history(
       long id, MeasurementCode code, Instant from, Instant to, int limit, int offset) {
+    return history(id, code, from, to, limit, offset, null);
+  }
+
+  public List<Measurement> history(
+      long id,
+      MeasurementCode code,
+      Instant from,
+      Instant to,
+      int limit,
+      int offset,
+      Long recordingId) {
     return sql.query(
         "SELECT * FROM measurements WHERE admission_id=? AND metric=? AND observed_at>=? AND"
-            + " observed_at<? ORDER BY observed_at,id LIMIT ? OFFSET ?",
+            + " observed_at<? AND (? IS NULL OR recording_id=?) ORDER BY observed_at,id LIMIT ?"
+            + " OFFSET ?",
         mapper,
         id,
         code,
         from,
         to,
+        recordingId,
+        recordingId,
         limit,
         offset);
   }
 
   public List<WaveformChunk> waveforms(
       long id, MeasurementCode code, Instant from, Instant to, int limit, int offset) {
+    return waveforms(id, code, from, to, limit, offset, null);
+  }
+
+  public List<WaveformChunk> waveforms(
+      long id,
+      MeasurementCode code,
+      Instant from,
+      Instant to,
+      int limit,
+      int offset,
+      Long recordingId) {
     return sql.query(
         "SELECT * FROM waveform_chunks WHERE admission_id=? AND metric=? AND observed_at>=? AND"
-            + " observed_at<? ORDER BY observed_at,id LIMIT ? OFFSET ?",
+            + " observed_at<? AND (? IS NULL OR recording_id=?) ORDER BY observed_at,id LIMIT ?"
+            + " OFFSET ?",
         this::waveform,
         id,
         code,
         from,
         to,
+        recordingId,
+        recordingId,
         limit,
         offset);
   }

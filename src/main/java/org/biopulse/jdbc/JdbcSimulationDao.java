@@ -67,14 +67,21 @@ public class JdbcSimulationDao implements SimulationDao {
   }
 
   public List<SimulationSession> list(String actor, boolean admin, int limit, int offset) {
+    return list(actor, admin, limit, offset, null);
+  }
+
+  public List<SimulationSession> list(
+      String actor, boolean admin, int limit, int offset, Long admissionId) {
     return sql.query(
-        "SELECT s.* FROM simulation_sessions s JOIN admissions a ON a.id=s.admission_id JOIN"
-            + " beds b ON b.id=a.bed_id WHERE (? OR EXISTS(SELECT 1 FROM user_wards uw JOIN users"
-            + " u ON u.id=uw.user_id WHERE uw.ward_id=b.ward_id AND u.username=?)) ORDER BY"
-            + " s.created_at DESC,s.id DESC LIMIT ? OFFSET ?",
+        "SELECT s.* FROM simulation_sessions s JOIN admissions a ON a.id=s.admission_id JOIN beds b"
+            + " ON b.id=a.bed_id WHERE (? OR EXISTS(SELECT 1 FROM user_wards uw JOIN users u ON"
+            + " u.id=uw.user_id WHERE uw.ward_id=b.ward_id AND u.username=?)) AND (? IS NULL OR"
+            + " s.admission_id=?) ORDER BY s.created_at DESC,s.id DESC LIMIT ? OFFSET ?",
         mapper,
         admin,
         actor,
+        admissionId,
+        admissionId,
         limit,
         offset);
   }

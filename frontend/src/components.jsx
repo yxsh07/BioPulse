@@ -4,20 +4,35 @@ import { stamp } from "./api";
 export const go = (page, params = {}) => {
   location.hash = "/" + page + "?" + new URLSearchParams(params);
 };
-export function useData(loader, deps = []) {
-  const [state, set] = useState({ data: null, loading: true, error: null }),
+export function useData(loader, deps = [], refreshDeps = []) {
+  const scope = JSON.stringify(deps);
+  const [state, set] = useState({
+      data: null,
+      loading: true,
+      error: null,
+      scope,
+    }),
     [rev, update] = useState(0);
   useEffect(() => {
     let active = true;
     set((s) => ({ ...s, loading: true, error: null }));
     loader()
-      .then((data) => active && set({ data, loading: false, error: null }))
-      .catch((error) => active && set({ data: null, loading: false, error }));
+      .then(
+        (data) => active && set({ data, loading: false, error: null, scope }),
+      )
+      .catch(
+        (error) => active && set({ data: null, loading: false, error, scope }),
+      );
     return () => {
       active = false;
     };
-  }, [...deps, rev]);
-  return { ...state, reload: () => update((n) => n + 1) };
+  }, [...deps, ...refreshDeps, rev]);
+  return {
+    ...(state.scope === scope
+      ? state
+      : { data: null, loading: true, error: null }),
+    reload: () => update((n) => n + 1),
+  };
 }
 export function useAction() {
   const [busy, setBusy] = useState(false),

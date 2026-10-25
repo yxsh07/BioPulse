@@ -17,7 +17,11 @@ public class MonitoringService {
   }
 
   public List<Measurement> latest(long id) {
+    return latest(id, null, null);
+  }
+
+  public List<Measurement> latest(long id, Long recordingId, java.time.Instant at) {
     access.admission(id);
-    return dao.latest(id);
+    return dao.latest(id, recordingId, at);
   }
 }

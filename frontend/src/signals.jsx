@@ -1,14 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Play, Pause, Square } from "lucide-react";
-import {
-  api,
-  post,
-  names,
-  stamp,
-  signalRange,
-  initialRange,
-  query,
-} from "./api";
+import { api, post, names, stamp, query } from "./api";
 import {
   useData,
   useAction,
@@ -20,17 +12,19 @@ import {
   Chart,
 } from "./components";
 import { AdmissionSelect } from "./patients";
-export function Signals({ admission, range, revision = 0 }) {
+import { useReplay, ReplaySelection } from "./replay";
+export function Signals({ admission, range, revision = 0, recordingId }) {
   const s = useData(
     () =>
       Promise.all(
         ["ECG", "PPG", "RESP"].map((metric) =>
           api(
-            `/admissions/${admission}/waveforms?metric=${metric}&${query(range)}&size=100`,
+            `/admissions/${admission}/waveforms?metric=${metric}&${query(range)}&size=100${recordingId ? `&recordingId=${recordingId}` : ""}`,
           ),
         ),
       ),
-    [admission, range.from, range.to, revision],
+    [admission, recordingId],
+    [range.from, range.to, revision],
   );
   if (!s.data) return <State {...s} />;
   return s.data.map((data, i) => {
@@ -39,12 +33,11 @@ export function Signals({ admission, range, revision = 0 }) {
     for (const { chunk: c } of data.items) {
       if (points.length)
         points.push({ time: Date.parse(c.observedAt) - 1, value: null });
-      c.samples.forEach((value, j) =>
-        points.push({
-          time: Date.parse(c.observedAt) + (j / c.sampleRateHz) * 1000,
-          value,
-        }),
-      );
+      c.samples.forEach((value, j) => {
+        const time = Date.parse(c.observedAt) + (j / c.sampleRateHz) * 1000;
+        if (time >= Date.parse(range.from) && time < Date.parse(range.to))
+          points.push({ time, value });
+      });
     }
     return (
       <Panel
@@ -97,79 +90,79 @@ export function Signals({ admission, range, revision = 0 }) {
   });
 }
 export function Monitoring({ admission, setAdmission, admin }) {
-  const [range, setRange] = useState(signalRange),
-    [session, setSession] = useState(null),
-    [recording, setRecording] = useState(1),
-    [speed, setSpeed] = useState(1),
-    [connection, setConnection] = useState("CONNECTING"),
-    [revision, setRevision] = useState(0);
-  const a = useAction();
+  const replay = useReplay();
+  const [recording, setRecording] = useState("");
+  const [following, setFollowing] = useState(true);
+  const [customRange, setCustomRange] = useState(null);
   useEffect(() => {
-    let stopped = false,
-      socket,
-      timer,
-      delay = 1000,
-      pending = false;
-    const connect = () => {
-      setConnection("CONNECTING");
-      socket = new WebSocket(
-        `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/monitoring?admissionId=${admission}`,
-      );
-      socket.onopen = () => {
-        delay = 1000;
-        setConnection("CONNECTED");
-        setRevision((n) => n + 1);
-      };
-      socket.onmessage = (e) => {
-        const m = JSON.parse(e.data);
-        if (m.type === "SIMULATION") setSession(m.payload);
-        if (["READING", "WAVEFORM"].includes(m.type) && !pending) {
-          pending = true;
-          timer = setTimeout(() => {
-            pending = false;
-            setRevision((n) => n + 1);
-          }, 1000);
-        }
-      };
-      socket.onclose = () => {
-        if (!stopped) {
-          setConnection("DISCONNECTED");
-          timer = setTimeout(connect, delay);
-          delay = Math.min(delay * 2, 30000);
-        }
-      };
-      socket.onerror = () => socket.close();
-    };
-    connect();
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-      socket?.close();
-    };
-  }, [admission]);
+    setFollowing(true);
+    setCustomRange(null);
+  }, [admission, replay.recordingId]);
+  const range = following
+    ? replay.signalRange
+    : customRange || replay.signalRange;
+  const [speed, setSpeed] = useState(1);
+  const a = useAction();
+  const sources = replay.recordings.filter(
+    (r) => r.sourceType !== "SIMULATION",
+  );
+  const selected =
+    sources.find((r) => String(r.id) === recording) || sources[0];
+  const session = replay.session;
   return (
     <>
       <div className="toolbar">
         <AdmissionSelect admission={admission} setAdmission={setAdmission} />
-        <Status state={connection} />
       </div>
-      <div className="notice">
-        Authenticated stream · recorded observation time is preserved. A
-        reconnect refreshes the REST snapshot.
-      </div>
+      <ReplaySelection />
       <Panel title="Recorded playback" tag="RESEARCH ONLY">
-        <Range range={range} setRange={setRange} />
+        {admin && (
+          <a
+            className="button"
+            href="/simulator/index.html"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open simulator console
+          </a>
+        )}
+        <p>
+          Waveforms follow the selected replay cursor in recorded time. Sessions
+          created in the simulator appear automatically.
+        </p>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={following}
+            onChange={(e) => {
+              setCustomRange(replay.signalRange);
+              setFollowing(e.target.checked);
+            }}
+          />
+          Follow replay cursor
+        </label>
+        {!following && <Range range={range} setRange={setCustomRange} />}
         {admin && (
           <>
             <div className="toolbar">
               <label>
-                Recording ID
-                <input
-                  type="number"
-                  min="1"
-                  value={recording}
-                  onChange={(e) => setRecording(Number(e.target.value))}
-                />
+                Source recording
+                <select
+                  aria-label="Source recording"
+                  value={selected?.id || ""}
+                  onChange={(e) => setRecording(e.target.value)}
+                >
+                  {!sources.length && (
+                    <option value="">
+                      No source recordings for this admission
+                    </option>
+                  )}
+                  {sources.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ? {r.sourceType}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Speed
@@ -177,35 +170,36 @@ export function Monitoring({ admission, setAdmission, admin }) {
                   value={speed}
                   onChange={(e) => setSpeed(Number(e.target.value))}
                 >
-                  {[0.5, 1, 2, 5, 10].map((x) => (
-                    <option key={x} value={x}>
-                      {x}×
+                  {[0.5, 1, 2, 5, 10].map((v) => (
+                    <option key={v} value={v}>
+                      {v}?
                     </option>
                   ))}
                 </select>
               </label>
               <button
-                disabled={a.busy}
+                disabled={a.busy || !selected}
                 onClick={() =>
-                  a.run(async () =>
-                    setSession(
-                      await post("/simulation-sessions", {
-                        admissionId: admission,
-                        recordingId: recording,
-                        speed,
-                      }),
-                    ),
-                  )
+                  a.run(async () => {
+                    await post("/simulation-sessions", {
+                      admissionId: admission,
+                      recordingId: selected.id,
+                      speed,
+                    });
+                    replay.select("auto");
+                    replay.refresh();
+                  })
                 }
               >
                 Create replay session
               </button>
             </div>
+            {selected && <small>{selected.provenance}</small>}
             {session && (
               <div className="toolbar">
                 <Status state={session.state} />
                 <span>
-                  Session {session.id} · {stamp(session.cursorAt)}
+                  Session {session.id} ? {stamp(session.cursorAt)}
                 </span>
                 {[
                   ["start", Play],
@@ -225,13 +219,12 @@ export function Monitoring({ admission, setAdmission, admin }) {
                       }[action].includes(session.state)
                     }
                     onClick={() =>
-                      a.run(async () =>
-                        setSession(
-                          await post(
-                            `/simulation-sessions/${session.id}/${action}`,
-                          ),
-                        ),
-                      )
+                      a.run(async () => {
+                        await post(
+                          `/simulation-sessions/${session.id}/${action}`,
+                        );
+                        replay.refresh();
+                      })
                     }
                   >
                     <Icon size={14} />
@@ -244,26 +237,46 @@ export function Monitoring({ admission, setAdmission, admin }) {
           </>
         )}
       </Panel>
-      <Signals admission={admission} range={range} revision={revision} />
+      {replay.ready && (
+        <Signals
+          admission={admission}
+          range={range}
+          recordingId={replay.recordingId}
+          revision={replay.revision}
+        />
+      )}
     </>
   );
 }
 export function Trends({ admission, setAdmission }) {
-  const [range, setRange] = useState(initialRange),
+  const replay = useReplay();
+  const [customRange, setRange] = useState(null),
     [metric, setMetric] = useState("HR"),
     [cadence, setCadence] = useState(10),
     [page, setPage] = useState(0);
+  useEffect(() => setRange(null), [admission, replay.recordingId]);
+  const range = customRange || replay.range;
+  const filter = replay.recordingId ? `&recordingId=${replay.recordingId}` : "";
   const s = useData(
     () =>
       Promise.all([
         api(
-          `/admissions/${admission}/analytics?metric=${metric}&cadenceSeconds=${cadence}&${query(range)}`,
+          `/admissions/${admission}/analytics?metric=${metric}&cadenceSeconds=${cadence}&${query(range)}${filter}`,
         ),
         api(
-          `/admissions/${admission}/measurements?metric=${metric}&${query(range)}&size=1000&page=${page}`,
+          `/admissions/${admission}/measurements?metric=${metric}&${query(range)}&size=1000&page=${page}${filter}`,
         ),
       ]),
-    [admission, metric, range.from, range.to, cadence, page],
+    [
+      admission,
+      metric,
+      range.from,
+      range.to,
+      cadence,
+      page,
+      replay.recordingId,
+    ],
+    [replay.revision],
   );
   const stats = s.data?.[0],
     history = s.data?.[1];
@@ -288,6 +301,7 @@ export function Trends({ admission, setAdmission }) {
           </select>
         </label>
       </div>
+      <ReplaySelection />
       <Panel title="Analysis window">
         <Range
           range={range}

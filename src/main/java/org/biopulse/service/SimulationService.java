@@ -59,6 +59,11 @@ public class SimulationService {
     return dao.list(access.actor(), access.admin(), limit, offset);
   }
 
+  public List<SimulationSession> list(int limit, int offset, Long admissionId) {
+    if (admissionId != null) access.admission(admissionId);
+    return dao.list(access.actor(), access.admin(), limit, offset, admissionId);
+  }
+
   @Transactional
   public SimulationSession create(SimulationCreate r) {
     access.admission(r.admissionId());
@@ -79,7 +84,9 @@ public class SimulationService {
         throw ApiException.bad(
             "Recorded device " + device + " is not assigned to the target admission");
     String name =
-        fit("Replay " + rec.name() + (scenario.synthetic() ? " [" + scenario.mode() + "]" : ""), 100);
+        fit(
+            "Replay " + rec.name() + (scenario.synthetic() ? " [" + scenario.mode() + "]" : ""),
+            100);
     String sourceProvenance =
         "Recorded playback; original recording:"
             + rec.id()
@@ -214,8 +221,7 @@ public class SimulationService {
         clocks.computeIfAbsent(
             id,
             ignored -> {
-              ReplayClock resumed =
-                  new ReplayClock(s.cursorAt(), original.endAt(), s.speed());
+              ReplayClock resumed = new ReplayClock(s.cursorAt(), original.endAt(), s.speed());
               resumed.start();
               return resumed;
             });
