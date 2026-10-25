@@ -31,6 +31,14 @@ public class JdbcAuditDao implements AuditDao {
               r.getString("entity_id"),
               Sql.instant(r, "occurred_at"));
 
+  public List<Entry> page(int offset, int limit) {
+    return sql.query(
+        "SELECT * FROM audit_logs ORDER BY occurred_at DESC,id DESC LIMIT ? OFFSET ?",
+        mapper,
+        limit,
+        offset);
+  }
+
   public List<Entry> byActor(String actor, int limit) {
     return sql.query(
         "SELECT * FROM audit_logs WHERE actor=? ORDER BY occurred_at DESC,id DESC LIMIT ?",

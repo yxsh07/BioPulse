@@ -14,6 +14,8 @@ public interface DeviceDao {
 
   List<MedicalDevice> all();
 
+  List<MedicalDevice> allAuthorized(String actor, boolean admin);
+
   DeviceAssignment assign(AssignmentCreate assignment);
 
   List<DeviceAssignment> assignmentHistory(long deviceId);

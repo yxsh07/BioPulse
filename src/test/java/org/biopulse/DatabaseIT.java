@@ -11,6 +11,8 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.UUID;
 import org.biopulse.dao.AnalyticsSnapshotDao;
+import org.biopulse.dao.AuditDao;
+import org.biopulse.dao.DeviceDao;
 import org.biopulse.dao.MeasurementDao;
 import org.biopulse.dao.ProvenanceDao;
 import org.biopulse.dao.ReportDao;
@@ -31,7 +33,8 @@ import org.testcontainers.containers.MySQLContainer;
 @SpringBootTest(
     properties = {"biopulse.seed-demo=true", "biopulse.demo-password=IntegrationOnlyPassword!"})
 class DatabaseIT {
-  static MySQLContainer<?> mysql = new MySQLContainer<>("mysql:8.4");
+  static MySQLContainer<?> mysql =
+      new MySQLContainer<>("mysql:8.4").withCommand("--log-bin-trust-function-creators=1");
 
   @DynamicPropertySource
   static void database(DynamicPropertyRegistry registry) {
@@ -54,6 +57,8 @@ class DatabaseIT {
   @Autowired MeasurementDao measurements;
   @Autowired ReportDao reports;
   @Autowired AnalyticsSnapshotDao snapshots;
+  @Autowired AuditDao audit;
+  @Autowired DeviceDao devices;
 
   @Test
   @Transactional
@@ -313,5 +318,52 @@ class DatabaseIT {
             .findFirst()
             .orElseThrow()
             .algorithmVersion());
+  }
+
+  @Test
+  @Transactional
+  void auditPagingReadsCanonicalLogAndAuthorizedDeviceListingFiltersInSql() {
+    String marker = "AUDIT-FIXTURE-" + UUID.randomUUID();
+    audit.append("admin@biopulse.local", marker + "-1", "fixture", "one");
+    audit.append("admin@biopulse.local", marker + "-2", "fixture", "two");
+    audit.append("admin@biopulse.local", marker + "-3", "fixture", "three");
+    assertEquals(
+        java.util.List.of(marker + "-3", marker + "-2", marker + "-1"),
+        audit.page(0, 3).stream().map(AuditDao.Entry::action).toList());
+    assertEquals(marker + "-1", audit.page(2, 1).getFirst().action());
+
+    long ward = sql.insert("INSERT INTO wards(name) VALUES(?)", "Restricted " + UUID.randomUUID());
+    long bed = sql.insert("INSERT INTO beds(ward_id,label) VALUES(?,'R1')", ward);
+    long patient =
+        sql.insert(
+            "INSERT INTO patients(code,display_name) VALUES(?,?)",
+            "R-" + UUID.randomUUID(),
+            "Restricted synthetic patient");
+    long admission =
+        sql.insert(
+            "INSERT INTO admissions(patient_id,bed_id,status,admitted_at) VALUES(?,?,'ACTIVE',?)",
+            patient,
+            bed,
+            Instant.now());
+    long device =
+        sql.insert(
+            "INSERT INTO devices(serial,adapter_type) VALUES(?,'ECG')",
+            "RESTRICTED-" + UUID.randomUUID());
+    sql.insert(
+        "INSERT INTO device_assignments(device_id,admission_id,assigned_at) VALUES(?,?,?)",
+        device,
+        admission,
+        Instant.now());
+
+    assertTrue(
+        devices.allAuthorized("nurse@biopulse.local", false).stream()
+            .anyMatch(d -> d.serial().equals("MON-012")));
+    assertTrue(
+        devices.allAuthorized("nurse@biopulse.local", false).stream()
+            .noneMatch(d -> d.id() == device));
+    assertTrue(
+        devices.allAuthorized("admin@biopulse.local", true).stream()
+            .anyMatch(d -> d.id() == device));
+    assertTrue(devices.allAuthorized("unknown@example.invalid", false).isEmpty());
   }
 }

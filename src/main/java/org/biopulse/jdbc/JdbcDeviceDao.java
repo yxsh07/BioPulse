@@ -32,6 +32,25 @@ public class JdbcDeviceDao implements DeviceDao {
     return registry.devices();
   }
 
+  private final Sql.Mapper<MedicalDevice> mapper =
+      r ->
+          new MedicalDevice(
+              r.getLong("id"),
+              r.getString("serial"),
+              r.getString("adapter_type"),
+              r.getBoolean("online"));
+
+  public List<MedicalDevice> allAuthorized(String actor, boolean admin) {
+    return sql.query(
+        "SELECT d.* FROM devices d WHERE ? OR EXISTS (SELECT 1 FROM device_assignments da JOIN"
+            + " admissions a ON a.id=da.admission_id JOIN beds b ON b.id=a.bed_id JOIN user_wards uw"
+            + " ON uw.ward_id=b.ward_id JOIN users u ON u.id=uw.user_id AND u.username=?"
+            + " AND u.enabled=TRUE WHERE da.device_id=d.id) ORDER BY d.id",
+        mapper,
+        admin,
+        actor);
+  }
+
   @Transactional
   public DeviceAssignment assign(AssignmentCreate assignment) {
     // Lock the device, then let the generated active_device uniqueness guard the insert.
