@@ -7,7 +7,7 @@ import java.util.Map;
 import org.biopulse.domain.MeasurementCode;
 import org.biopulse.domain.QualityFlag;
 import org.biopulse.simulation.bidmc.BidmcRecording;
-import org.biopulse.simulation.bidmc.ScenarioMode;
+import org.biopulse.domain.ScenarioMode;
 import org.biopulse.simulation.bidmc.ScenarioTransformer;
 import org.junit.jupiter.api.Test;
 

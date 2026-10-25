@@ -1,19 +1,30 @@
 package org.biopulse.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
 import org.biopulse.domain.SimulationSession;
+import org.biopulse.dto.Page;
 import org.biopulse.dto.Requests.SimulationCreate;
 import org.biopulse.service.SimulationService;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/simulation-sessions")
+@Validated
 public class SimulationController {
   private final SimulationService service;
 
   public SimulationController(SimulationService service) {
     this.service = service;
+  }
+
+  @GetMapping
+  public Page<SimulationSession> list(
+      @RequestParam(defaultValue = "0") @Min(0) @Max(100000) int page,
+      @RequestParam(defaultValue = "25") @Min(1) @Max(100) int size) {
+    return Page.of(service.list(size + 1, page * size), page, size);
   }
 
   @PostMapping

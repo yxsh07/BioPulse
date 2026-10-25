@@ -37,7 +37,7 @@ No additional JDBC or SQL migrations will be authored by the backend agent. Shar
 
 ## Verification baseline
 
-Java 21 compilation, 25 unit tests (one published-dataset test skipped), 14 real-MySQL integration tests, the frontend build, OpenAPI validation and four desktop/mobile browser scenarios pass. The integration suite runs against MySQL 8.4 through Testcontainers 1.21.4 on Docker Desktop 29, and was also checked against a separate MySQL 8.0.46 instance on port 3307. GitHub Actions runs the Testcontainers path. Local secrets and test data are under ignored `.tools/`; never commit those files.
+Java 21 compilation, 32 default unit tests plus the optional published BIDMC count test (33/33 when `BIDMC_CSV_DIR` is supplied), 15 real-MySQL integration tests, the frontend build, OpenAPI validation, and the simulator scenario/history workflow pass. The integration suite runs against MySQL 8.4 through Testcontainers 1.21.4 on Docker Desktop 29 and applies all seven migrations. The simulator end-to-end run used a separate MySQL 8.0.46 instance on port 3307. GitHub Actions runs the Testcontainers path. Local secrets and test data are under ignored `.tools/`; never commit those files.
 
 ## Independent build output
 

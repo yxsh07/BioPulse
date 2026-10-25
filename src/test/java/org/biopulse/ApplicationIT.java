@@ -214,7 +214,7 @@ class ApplicationIT {
   @Test
   @WithMockUser(username = "admin@biopulse.local", roles = "ADMIN")
   void simulationPreservesRecordingTimeAndProvenance() {
-    var session = simulations.create(new SimulationCreate(1, 1, 1));
+    var session = simulations.create(new SimulationCreate(1, 1, 1, null));
     assertEquals(SimulatorState.CREATED, session.state());
     simulations.transition(session.id(), "start");
     simulations.tick(session.id());
@@ -234,6 +234,39 @@ class ApplicationIT {
     simulations.transition(session.id(), "resume");
     simulations.transition(session.id(), "stop");
     assertEquals(SimulatorState.STOPPED, simulations.get(session.id()).state());
+  }
+
+  @Test
+  @WithMockUser(username = "admin@biopulse.local", roles = "ADMIN")
+  void simulationScenarioIsDurableAndListed() throws Exception {
+    var scenario = new ScenarioSpec(ScenarioMode.MISSING_DATA, 0.5, 1.5, 0.0);
+    var session = simulations.create(new SimulationCreate(1, 1, 1, scenario));
+    assertEquals(ScenarioMode.MISSING_DATA, session.scenario().mode());
+    assertTrue(session.scenario().synthetic());
+    assertNotNull(session.createdAt());
+
+    var body =
+        json.readTree(
+            mvc.perform(get("/api/v1/simulation-sessions").param("size", "100"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString());
+    var listed =
+        java.util.stream.StreamSupport.stream(body.get("items").spliterator(), false)
+            .filter(item -> item.get("id").asLong() == session.id())
+            .findFirst()
+            .orElseThrow();
+    assertEquals("MISSING_DATA", listed.get("scenario").get("mode").asText());
+    assertEquals(0.5, listed.get("scenario").get("fromSeconds").asDouble());
+    assertFalse(listed.get("createdAt").asText().isBlank());
+
+    assertThrows(
+        RuntimeException.class,
+        () ->
+            simulations.create(
+                new SimulationCreate(
+                    1, 1, 1, new ScenarioSpec(ScenarioMode.MISSING_DATA, 0.0, 99.0, 0.0))));
   }
 
   @Test

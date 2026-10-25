@@ -23,6 +23,9 @@ import org.springframework.stereotype.Component;
 public class BidmcCsvImporter {
   private static final Pattern ID = Pattern.compile("bidmc_\\d{2}");
   private static final double SIGNAL_RATE = 125.0;
+  // Published files print signal time to 2 decimal places once it reaches 100 s.
+  // The row cadence remains 125 Hz, so accept rounding up to half a printed step.
+  private static final double SIGNAL_TIME_TOLERANCE = 0.006;
 
   public BidmcRecording importDirectory(Path directory, String recordingId, String ecgLead)
       throws IOException {
@@ -69,7 +72,7 @@ public class BidmcCsvImporter {
       while ((line = reader.readLine()) != null) {
         String[] fields = fields(line, header.size(), file, row + 2);
         double time = number(fields[header.get("Time [s]")], file, row + 2);
-        if (Math.abs(time - row / SIGNAL_RATE) > 0.0011)
+        if (Math.abs(time - row / SIGNAL_RATE) > SIGNAL_TIME_TOLERANCE)
           throw new IOException("Signal time misaligned at row " + (row + 2));
         for (var entry : columns.entrySet()) {
           var values = pending.get(entry.getKey());

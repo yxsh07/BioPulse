@@ -117,7 +117,7 @@ Reports are stored immutable CSV snapshots for one admission or one authorized w
 | `security`, `websocket`, `config`, `exception` | Access scopes, transport, wiring and errors |
 | `database/migrations` | Shared MySQL schema migrations, packaged into Flyway's classpath location |
 | `frontend/src` | Responsive Framer-based application and REST/WebSocket client |
-| `web-simulator` | Static ADMIN console for BIDMC import, replay control and live waveform inspection |
+| `web-simulator` | Static ADMIN console for BIDMC import, scenario replay, server-backed session history and live waveform inspection |
 | `design/framer` | Preserved source reference and original render gallery |
 
 [Architecture and OOP explanation](docs/ARCHITECTURE.md). `AGENTS.md` carries the user's project-level instruction to verify, commit and push completed tasks. Secrets, local tools, databases, browser traces and generated build products are excluded from Git.

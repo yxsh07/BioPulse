@@ -2322,8 +2322,76 @@
       }
     },
     "/api/v1/simulation-sessions": {
+      "get": {
+        "summary": "List replay sessions in the caller's admission scope (ADMIN sees all)",
+        "operationId": "get_api_v1_simulation_sessions",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationSessionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Role, ward or CSRF access denied",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "minimum": 0,
+              "maximum": 100000
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      },
       "post": {
-        "summary": "Create recorded playback with independent simulation provenance (ADMIN)",
+        "summary": "Create recorded playback with optional scenario metadata and independent simulation provenance (ADMIN)",
         "operationId": "post_api_v1_simulation_sessions",
         "responses": {
           "200": {
@@ -4841,12 +4909,52 @@
             "format": "double",
             "minimum": 0.1,
             "maximum": 16
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/ScenarioSpec"
           }
         },
         "required": [
           "admissionId",
           "recordingId",
           "speed"
+        ]
+      },
+      "ScenarioSpec": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "NORMAL",
+              "ABNORMAL_DEMO",
+              "SENSOR_OFFLINE",
+              "MISSING_DATA",
+              "NOISY_SIGNAL",
+              "DELAYED_TELEMETRY"
+            ]
+          },
+          "fromSeconds": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "nullable": true
+          },
+          "toSeconds": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "magnitude": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "maximum": 100,
+            "nullable": true
+          }
+        },
+        "required": [
+          "mode"
         ]
       },
       "SimulationSession": {
@@ -4882,6 +4990,13 @@
           "cursorAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/ScenarioSpec"
           }
         },
         "required": [
@@ -4891,8 +5006,30 @@
           "outputRecordingId",
           "state",
           "speed",
-          "cursorAt"
+          "cursorAt",
+          "createdAt",
+          "scenario"
         ]
+      },
+      "SimulationSessionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SimulationSession"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "hasNext": {
+            "type": "boolean"
+          }
+        }
       },
       "ReportCreate": {
         "type": "object",

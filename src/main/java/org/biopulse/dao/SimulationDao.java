@@ -6,9 +6,16 @@ import org.biopulse.domain.*;
 
 public interface SimulationDao {
   SimulationSession create(
-      long admission, long recording, long output, double speed, Instant start);
+      long admission,
+      long recording,
+      long output,
+      double speed,
+      Instant start,
+      ScenarioSpec scenario);
 
   Optional<SimulationSession> get(long id, boolean lock);
+
+  List<SimulationSession> list(String actor, boolean admin, int limit, int offset);
 
   List<Long> running();
 

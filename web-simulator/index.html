@@ -38,8 +38,15 @@
         <div class="panel"><div class="panel-head"><div><span class="eyebrow">03 / SESSION</span><h2>Replay controls</h2></div><span id="state" class="state">NO SESSION</span></div>
           <label>Monitoring session<select id="session"><option value="">Create or select session</option></select></label>
           <label>Playback speed<select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="5">5×</option><option value="10">10×</option></select></label>
+          <div class="scenario-grid">
+            <label>Scenario<select id="scenario-mode"><option value="NORMAL">Normal replay</option><option value="ABNORMAL_DEMO">Abnormal values</option><option value="SENSOR_OFFLINE">Sensor offline</option><option value="MISSING_DATA">Missing data</option><option value="NOISY_SIGNAL">Noisy signal</option><option value="DELAYED_TELEMETRY">Delayed telemetry</option></select></label>
+            <label>Magnitude<input id="scenario-magnitude" type="number" min="0" max="100" step="1" value="20"></label>
+            <label>From (source seconds)<input id="scenario-from" type="number" min="0" step="0.1" value="0"></label>
+            <label>To (source seconds)<input id="scenario-to" type="number" min="0.1" step="0.1" value="10"></label>
+          </div>
           <div class="controls"><button id="create">Create</button><button id="start" class="secondary">Start</button><button id="pause" class="secondary">Pause</button><button id="resume" class="secondary">Resume</button><button id="stop" class="danger">Stop</button></div>
-          <p class="detail">Speed is fixed when a session is created. Reaching the recording end completes the session; replay does not silently loop.</p>
+          <p id="scenario-detail" class="detail">Normal replay preserves the imported source values. Scenario output is explicitly synthetic and never changes the imported rows.</p>
+          <p class="detail">Speed and scenario are fixed when a session is created. Reaching the recording end completes the session; replay does not silently loop.</p>
         </div>
       </section>
       <section class="panel import-panel">

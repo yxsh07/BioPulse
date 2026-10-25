@@ -1,40 +1,46 @@
 # Verification evidence
 
-Executed on 25 October 2026.
+Executed on 26 October 2026.
 
 | Check | Result |
 | --- | --- |
 | Java 21 compilation and executable JAR packaging | Passed |
-| JUnit/Mockito unit tests | 25 passed; one published-dataset test skipped because BIDMC files were not supplied |
-| JDBC + API integration tests against isolated MySQL 8.4 (Testcontainers) | 14 passed; zero skipped, all six shared Flyway migrations enabled |
-| GitHub Actions MySQL 8.4 Testcontainers integration | Passed in CI run `40220130647`; MySQL 8.4 service container plus Testcontainers MySQL 8.4 tests |
-| Local Docker Engine 29 + Testcontainers 1.21.4 MySQL 8.4 integration | 14 passed; zero skipped; 25 unit tests (one optional dataset test skipped) |
+| JUnit/Mockito unit tests | 33 passed, zero skipped, when `BIDMC_CSV_DIR` pointed at the complete published `bidmc_01` CSV set |
+| JDBC + API integration tests against isolated MySQL 8.4 (Testcontainers) | 15 passed; zero skipped, all seven shared Flyway migrations enabled |
+| Local Docker Engine 29 + Testcontainers 1.21.4 MySQL 8.4 integration | 15 passed; zero skipped |
+| Full published BIDMC parser counts | Passed; 60,001 ECG samples, 481 × 4 numeric observations, 480.008 s duration |
+| Full published BIDMC import/replay end-to-end | Passed; 1,443 waveform chunks, 1,924 numeric observations, 480.0 s, subject `s01182` |
+| Scenario transformation and server-backed history | Passed; `ABNORMAL_DEMO` output changed values/quality, session survived reload |
 | Frontend production build | Passed |
-| Desktop and phone Chromium workflows against the real API | 4 passed |
 | OpenAPI 3.0 contract validation | Passed with Swagger Parser |
-| Desktop/phone screenshots | Reviewed; waveform display window and mobile monitoring access corrected |
+| JavaScript syntax (`node --check web-simulator/simulator.js`) | Passed |
+| Simulator browser console errors and failed requests | None in the final scenario workflow |
 | npm dependency audit | Zero reported vulnerabilities at installation |
 
-CI evidence for commit `61a6176`: https://github.com/yxsh07/BioPulse/actions/runs/40220130647 — successful. The run includes the default Docker/Testcontainers path with `--log-bin-trust-function-creators=1`, frontend build and all four browser scenarios. An earlier run for commit `2172e9b` (https://github.com/yxsh07/BioPulse/actions/runs/40204125487) also passed.
+The earlier CI evidence for commit `61a6176`: https://github.com/yxsh07/BioPulse/actions/runs/40220130647 was successful. That run predates the scenario/session-history changes and is not evidence for the current working tree. Local verification above is the current evidence.
 
-Local Docker Desktop 29.0.1 is reachable. Testcontainers 1.21.3 pinned Docker API 1.32, which Engine 29 rejects because its minimum supported API is 1.44; Testcontainers 1.21.4 negotiates 1.44 and falls back to 1.32 for older engines. The default Testcontainers MySQL 8.4 path now passes locally. The separate MySQL 8.0.46 process on port 3307 remains available for `TEST_DB_*` runs but is no longer required. The existing MySQL Windows service and its data were left alone.
+Local Docker Desktop 29.0.1 is reachable. Testcontainers 1.21.3 pinned Docker API 1.32, which Engine 29 rejects because its minimum supported API is 1.44; Testcontainers 1.21.4 negotiates 1.44 and falls back to 1.32 for older engines. The default Testcontainers MySQL 8.4 path passes locally. The separate MySQL 8.0.46 process on port 3307 was used for the simulator end-to-end run and is not required for standard verification. Testcontainers teardown still logs transient scheduler connection errors after a context closes; they occur after the test results and did not fail any test.
 
-The browser scenarios cover secure login/logout, patient selection, honest missing measurements, waveform rendering, historical analytics, WebSocket connection, replay create/start/pause/stop, alert timeline and acknowledgment, report generation and CSV download, directory search and local theme preferences. Unit and API tests additionally cover numerical/missing-data behavior, fractional threshold gaps, duplicate transaction rollback, version conflicts, ward and role restrictions, CSRF, source provenance and session-invalidated sockets.
+The four earlier browser workflows cover secure login/logout, patient selection, honest missing measurements, waveform rendering, historical analytics, WebSocket connection, replay create/start/pause/stop, alert timeline and acknowledgment, report generation and CSV download, directory search and local theme preferences. Unit and API tests additionally cover numerical/missing-data behavior, fractional threshold gaps, duplicate transaction rollback, version conflicts, ward and role restrictions, CSRF, source provenance, scenario validation, session listing and session-invalidated sockets.
 
 ## Simulator console end-to-end (26 October 2026)
 
-The operator console was exercised in headless Chromium against a fresh MySQL 8.4 container, a seeded demo admission, and a **generated** 60-second BIDMC-format fixture. This used the ADMIN import route, a `MULTI` device assigned to the admission, and does not claim validation against the full published recording.
+A final headless-Chromium run used the complete published BIDMC `bidmc_01` CSV set under ignored `.tools/bidmc-test/`, a local MySQL 8.0 demo database, and the backend built from this working tree. The ADMIN import route mapped all seven canonical channels to an assigned `MULTI` device.
 
 | Check | Result |
 | --- | --- |
-| Administrator sign-in, catalog and import mapping | Passed; seven channels mapped to capable visible devices |
-| BIDMC import through `POST /api/v1/datasets/bidmc/import` | Passed; 180 waveform chunks and 244 numeric observations, recording selected automatically |
-| Session create/start at 10× | Passed; replay events rendered ECG/PPG/respiration canvas frames and numeric vital cards |
-| Pause/resume and completion | Passed; cursor resumed monotonically and session reached `COMPLETED` at source end |
-| Provenance | Passed; output source type `SIMULATION`, output recording references original recording/source |
+| Published file download and parser count | Passed; 2,678,552-byte Signals CSV, 60,001 samples per waveform channel |
+| BIDMC import through `POST /api/v1/datasets/bidmc/import` | Passed; 1,443 waveform chunks and 1,924 numeric observations, recording selected automatically |
+| Source provenance | Passed; source recording `bidmc_01` remains `ORIGINAL_RESEARCH`; subject pseudonym `s01182` |
+| Scenario session creation | Passed; `ABNORMAL_DEMO`, range `[0,60)` source seconds, magnitude `10`, speed `1×` |
+| Scenario replay output | Passed; source HR 94 became HR 104 with `POOR` quality; SPO2 97 became 87; source rows were unchanged |
+| Synthetic provenance | Passed; output source type `SIMULATION`, class `SYNTHETIC_CLINICAL`, replay recording references the original |
+| Server-backed session history | Passed; session appeared in `GET /api/v1/simulation-sessions`, survived a browser reload, and reopened with its scenario metadata |
 | Browser console errors and failed requests | None |
-| JavaScript syntax (`node --check web-simulator/simulator.js`) | Passed |
+| Screenshot | `.tools/simulator-scenario-e2e.png` (ignored, not committed) |
 
-The generated fixture is under ignored `.tools/` and is not committed. The optional published `bidmc_01` full-count test still skips because the local dataset download is incomplete; import/replay behavior against the complete published CSV set remains unverified.
+The published signal time column is printed to two decimal places after 100 s, so the importer validates each row against the declared 125 Hz cadence with a 0.006 s tolerance. The row count, not the rounded text, still determines sample count and duration. This change was required for the published recording; the generated synthetic fixture had exact three-decimal times and did not expose it.
 
-The combined Java verification above used the committed shared DAO layer and six Flyway migrations. The ADMIN `/audit` route now reads the canonical `audit_logs` table through `AuditDao.page`, and an API regression asserts that new audit writes appear there with reconstructed `entityType:entityId` resources. Device listing now applies ward authorization in SQL through `DeviceDao.allAuthorized`. The BIDMC import regression tested a short generated CSV fixture through the actual MySQL DAOs; the published full dataset was unavailable locally, so its optional count check skipped. CI run `40220130647` verified these latest shared-schema commits, including the MySQL trigger path under binary logging. Physical device transport, native Android/JavaFX clients, clinical validation, NEWS2, trained ML, PDF signing and hosted deployment are not claimed.
+An earlier generated 60-second BIDMC-format fixture also exercised pause/resume, completion and the full replay UI. That historical run is not a substitute for the published-data result above.
+
+The combined Java verification used seven Flyway migrations. The BIDMC import regression now runs against the full published CSV set when `BIDMC_CSV_DIR` is supplied, and the optional test passes locally. `DELAYED_TELEMETRY` remains a labeled metadata-only scenario: it records the delay but does not alter source timestamps or schedule delayed transport. Physical device transport, native Android/JavaFX clients, clinical validation, NEWS2, trained ML, PDF signing and hosted deployment are not claimed.

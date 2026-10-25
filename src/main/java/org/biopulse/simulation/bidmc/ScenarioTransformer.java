@@ -3,6 +3,7 @@ package org.biopulse.simulation.bidmc;
 import java.util.ArrayList;
 import java.util.List;
 import org.biopulse.domain.MeasurementCode;
+import org.biopulse.domain.ScenarioMode;
 import org.biopulse.domain.QualityFlag;
 import org.biopulse.simulation.bidmc.BidmcRecording.NumericObservation;
 import org.biopulse.simulation.bidmc.BidmcRecording.WaveformFrame;

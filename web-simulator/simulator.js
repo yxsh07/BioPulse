@@ -1,15 +1,13 @@
 const $ = id => document.getElementById(id);
 const apiOrigin = new URLSearchParams(location.search).get('api') ||
   (location.port === '8080' ? location.origin : `${location.protocol}//${location.hostname}:8080`);
-const storageKey = 'biopulse-simulator-sessions-v1';
 const metrics = {HR:['Heart rate','bpm'],PULSE:['Pulse rate','bpm'],SPO2:['Oxygen saturation','%'],RR:['Respiratory rate','breaths/min'],SBP:['Systolic pressure','mmHg'],DBP:['Diastolic pressure','mmHg'],TEMP:['Temperature','Cel']};
 const colors = {ECG:'#8bd8a4',PPG:'#86cce1',RESP:'#c4b0e7'};
 const importCodes = ['ECG','PPG','RESP','HR','PULSE','RR','SPO2'];
 const capabilities = {ECG:['ECG','HR'],OXIMETER:['PPG','PULSE','SPO2'],RESPIRATORY:['RESP','RR'],NIBP:['SBP','DBP'],TEMPERATURE:['TEMP'],MULTI:['ECG','PPG','RESP','HR','PULSE','SPO2','RR','SBP','DBP','TEMP']};
 let csrf = '', sources = [], recordings = [], admissions = [], devices = [], selectedSession = null;
 let socket = null, reconnectTimer = null, heartbeatTimer = null, seen = new Set();
-let history = [];
-try { history = JSON.parse(localStorage.getItem(storageKey) || '[]'); if (!Array.isArray(history)) history = []; } catch { history = []; }
+let sessionHistory = [];
 const sourceById = id => sources.find(s => String(s.id) === String(id));
 const recordingById = id => recordings.find(r => String(r.id) === String(id));
 const selectedAdmission = () => Number($('admission').value);
@@ -44,18 +42,57 @@ function sourceOffset(at, recording=recordingById(selectedRecording())) {
 function option(select, value, label) { const o=document.createElement('option'); o.value=value; o.textContent=label; select.append(o); }
 function renderCatalog() {
   $('recording').replaceChildren(); option($('recording'),'','Select recording');
-  for (const r of recordings.filter(r => sourceById(r.sourceId)?.name?.toUpperCase().includes('BIDMC')))
+  for (const r of recordings.filter(r => sourceById(r.sourceId)?.type === 'DATASET'))
     option($('recording'), r.id, `${r.name} · ${((Date.parse(r.endAt)-Date.parse(r.startAt))/60000).toFixed(1)} min`);
   $('admission').replaceChildren(); option($('admission'),'','Select admission');
   for (const a of admissions.filter(a => a.status === 'ACTIVE')) option($('admission'),a.id,`Admission ${a.id} · patient ${a.patientId}`);
   renderHistory();
 }
+function recordingDuration(r=recordingById(selectedRecording())) {
+  return r ? (Date.parse(r.endAt)-Date.parse(r.startAt))/1000 : 0;
+}
+function scenarioMode() { return $('scenario-mode').value; }
+function scenarioPayload() {
+  const mode=scenarioMode();
+  if (mode==='NORMAL') return {mode};
+  return {mode,fromSeconds:Number($('scenario-from').value),toSeconds:Number($('scenario-to').value),magnitude:Number($('scenario-magnitude').value)};
+}
+function scenarioValid() {
+  const mode=scenarioMode();
+  if (mode==='NORMAL') return true;
+  const from=Number($('scenario-from').value), to=Number($('scenario-to').value);
+  const magnitude=Number($('scenario-magnitude').value), duration=recordingDuration();
+  return Number.isFinite(from)&&Number.isFinite(to)&&Number.isFinite(magnitude)
+    &&duration>0&&from>=0&&to>from&&to<=duration+0.000001&&magnitude>=0&&magnitude<=100;
+}
+function renderScenario() {
+  const mode=scenarioMode(), normal=mode==='NORMAL';
+  $('scenario-from').disabled=normal;$('scenario-to').disabled=normal;$('scenario-magnitude').disabled=normal;
+  const messages={
+    NORMAL:'Normal replay preserves the imported source values. Scenario output is explicitly synthetic and never changes the imported rows.',
+    ABNORMAL_DEMO:'Adds the magnitude to numeric readings (SPO2 is reduced) and marks them POOR inside the window.',
+    SENSOR_OFFLINE:'Suppresses waveform samples and numeric readings inside the window and marks missing numeric output.',
+    MISSING_DATA:'Suppresses waveform samples and numeric readings inside the window and marks missing numeric output.',
+    NOISY_SIGNAL:'Adds deterministic noise to waveform samples inside the window and marks those chunks POOR.',
+    DELAYED_TELEMETRY:'Labels the selected window as delayed telemetry; source values and timestamps stay unchanged, and the synthetic delay is recorded in provenance.'
+  };
+  $('scenario-detail').textContent=messages[mode]||messages.NORMAL;
+  if (mode==='DELAYED_TELEMETRY') $('scenario-detail').textContent+=' Magnitude is the delay in seconds.';
+  updateControls();
+}
 function renderRecording() {
-  const r=recordingById(selectedRecording()), s=r&&sourceById(r.sourceId);
+  const r=recordingById(selectedRecording()), s=r&&sourceById(r.sourceId), duration=recordingDuration(r);
   $('source-detail').textContent=r ? `Recording ${r.name} · source ID ${r.sourceId} · ${sourceOffset(r.endAt,r)} source duration` : 'Select an imported BIDMC recording.';
   $('provenance').textContent=s ? `${s.provenance} · Data quality follows each received chunk and observation. Display times are offsets from recording start.` : 'Select a recording.';
   $('clock').textContent=r ? '00:00.00' : '—';
   $('clock-note').textContent=r ? 'Relative source time; not acquisition wall time' : 'Select a recording';
+  if (r) {
+    $('scenario-to').max=String(duration);
+    $('scenario-from').max=String(duration);
+    const to=Number($('scenario-to').value);
+    if (!Number.isFinite(to)||to<=0||to>duration) $('scenario-to').value=String(Math.min(10,duration).toFixed(2));
+  }
+  renderScenario();
   updateControls();
 }
 async function renderAdmission() {
@@ -133,62 +170,73 @@ async function importRecording() {
     $('import-detail').textContent=`Import failed for ${recordingId}. Confirm the CSV set exists under the server dataset root and that each mapped device is assigned to admission ${admissionId}.`;
   } finally {button.textContent=label;updateControls();}
 }
+function scenarioLabel(session) {
+  const mode=session?.scenario?.mode;
+  return mode&&mode!=='NORMAL' ? mode : '';
+}
 function renderHistory() {
   $('session').replaceChildren();option($('session'),'','Create or select session');$('history').replaceChildren();
-  const visible=history.filter(h=>!selectedAdmission()||h.admissionId===selectedAdmission());
+  const visible=sessionHistory.filter(h=>!selectedAdmission()||h.admissionId===selectedAdmission());
   for (const h of visible) {
-    option($('session'),h.id,`#${h.id} · admission ${h.admissionId} · ${h.state || 'CREATED'}`);
+    const mode=scenarioLabel(h);
+    option($('session'),h.id,`#${h.id} · admission ${h.admissionId} · ${h.state || 'CREATED'}${mode?' · '+mode:''}`);
     const row=document.createElement('div');row.className='history-row';
-    const label=document.createElement('span');label.textContent=`#${h.id} · ${h.recordingName} · ${h.state || 'CREATED'} · ${h.speed}×`;
+    const name=recordingById(h.recordingId)?.name||`recording ${h.recordingId}`;
+    const label=document.createElement('span');label.textContent=`#${h.id} · ${name} · ${h.state || 'CREATED'} · ${h.speed}×${mode?' · '+mode:''}`;
     const button=document.createElement('button');button.textContent='Open';button.onclick=()=>chooseSession(h.id);
     row.append(label,button);$('history').append(row);
   }
-  if(!visible.length) $('history').textContent='No locally remembered sessions for this admission.';
+  if(!visible.length) $('history').textContent='No server-side sessions for this admission.';
   if(selectedSession) $('session').value=String(selectedSession.id);
 }
-function remember(session) {
-  const r=recordingById(session.recordingId);
-  history=[{id:session.id,admissionId:session.admissionId,recordingId:session.recordingId,
-    recordingName:r?.name||`recording ${session.recordingId}`,state:session.state,speed:session.speed},
-    ...history.filter(h=>h.id!==session.id)].slice(0,50);
-  localStorage.setItem(storageKey,JSON.stringify(history));renderHistory();
+function cacheSession(session) {
+  sessionHistory=[session,...sessionHistory.filter(h=>h.id!==session.id)].slice(0,100);
+  renderHistory();
 }
 async function chooseSession(id) {
-  if(!id) {selectedSession=null;updateControls();return;}
+  if(!id) {selectedSession=null;renderSession();return;}
   try {
     selectedSession=await request(`/simulation-sessions/${id}`);
     clearVitals();
     $('admission').value=String(selectedSession.admissionId);
     $('recording').value=String(selectedSession.recordingId);
     $('speed').value=String(selectedSession.speed);
-    renderRecording(); await renderAdmission(); remember(selectedSession);renderSession();
+    renderRecording();
+    const scenario=selectedSession.scenario||{mode:'NORMAL'};
+    $('scenario-mode').value=scenario.mode||'NORMAL';
+    $('scenario-from').value=scenario.fromSeconds==null?'0':String(scenario.fromSeconds);
+    $('scenario-to').value=scenario.toSeconds==null?String(Math.min(10,recordingDuration()).toFixed(2)):String(scenario.toSeconds);
+    $('scenario-magnitude').value=scenario.magnitude==null?'20':String(scenario.magnitude);
+    renderScenario();
+    await renderAdmission(); cacheSession(selectedSession);renderSession();
   } catch(e) {notice(`Session ${id}: ${e.message}`);}
 }
 function renderSession() {
-  const s=selectedSession;
+  const s=selectedSession, mode=scenarioLabel(s);
   $('state').textContent=s?.state||'NO SESSION';$('state').className=`state ${s?.state||''}`;
   if(s) {
     $('clock').textContent=sourceOffset(s.cursorAt,recordingById(s.recordingId));
-    $('clock-note').textContent=`${s.speed}× · ${s.state} · source-relative clock`;
+    $('clock-note').textContent=`${s.speed}× · ${s.state} · ${mode||'NORMAL'} · source-relative clock`;
   }
   updateControls();
 }
 function updateControls() {
   const state=selectedSession?.state;
-  $('create').disabled=!selectedAdmission()||!selectedRecording();
+  $('create').disabled=!selectedAdmission()||!selectedRecording()||!scenarioValid();
   $('start').disabled=state!=='CREATED';$('pause').disabled=state!=='RUNNING';
   $('resume').disabled=state!=='PAUSED';$('stop').disabled=!['CREATED','RUNNING','PAUSED'].includes(state);
   $('import').disabled=!importValid();
 }
 async function createSession() {
+  if(!scenarioValid()){notice('Scenario range must be inside the selected recording and magnitude must be 0–100.');return;}
   try {
-    const session=await post('/simulation-sessions',{admissionId:selectedAdmission(),recordingId:selectedRecording(),speed:Number($('speed').value)});
-    selectedSession=session;clearVitals();remember(session);renderSession();notice(`Created session ${session.id}.`);
+    const session=await post('/simulation-sessions',{admissionId:selectedAdmission(),recordingId:selectedRecording(),speed:Number($('speed').value),scenario:scenarioPayload()});
+    selectedSession=session;clearVitals();cacheSession(session);renderSession();notice(`Created session ${session.id}${scenarioLabel(session)?' · '+scenarioLabel(session):''}.`);
   } catch(e) {notice(`Create failed: ${e.message}`);}
 }
 async function action(name) {
   if(!selectedSession)return;
-  try {selectedSession=await post(`/simulation-sessions/${selectedSession.id}/${name}`);remember(selectedSession);renderSession();notice(`Session ${selectedSession.id}: ${selectedSession.state}.`);}
+  try {selectedSession=await post(`/simulation-sessions/${selectedSession.id}/${name}`);cacheSession(selectedSession);renderSession();notice(`Session ${selectedSession.id}: ${selectedSession.state}.`);}
   catch(e){notice(`${name}: ${e.message}`);}
 }
 async function refreshSession() {
@@ -196,7 +244,7 @@ async function refreshSession() {
   try {
     const next=await request(`/simulation-sessions/${selectedSession.id}`);
     if(next.state!==selectedSession.state)log(`Session ${next.id}: ${next.state}`);
-    selectedSession=next;remember(next);renderSession();
+    selectedSession=next;cacheSession(next);renderSession();
   } catch(e) {log(`Session refresh: ${e.message}`);}
 }
 function draw(metric,samples) {
@@ -244,9 +292,10 @@ function clearVitals(){for(const [code,[,unit]] of Object.entries(metrics)){cons
 async function refreshVitals(){if(!selectedAdmission())return;const readings=await request(`/admissions/${selectedAdmission()}/measurements/latest`);for(const m of readings)updateVital(m)}
 async function loadDevices(){try{devices=await request('/devices');renderDevices();renderImportDevices();updateControls()}catch(e){log(`Devices: ${e.message}`)}}
 async function loadCatalog(){
-  const [src,rec,adm,dev]=await Promise.all([request('/sources'),request('/recordings'),request('/admissions?size=100'),request('/devices')]);
-  sources=src;recordings=rec;admissions=adm.items||adm.content||[];devices=dev;renderCatalog();renderImportDevices();updateControls();
-  log(`Loaded ${recordings.length} source recordings and ${admissions.length} admissions.`);
+  const [src,rec,adm,dev,sessions]=await Promise.all([request('/sources'),request('/recordings'),request('/admissions?size=100'),request('/devices'),request('/simulation-sessions?size=100')]);
+  sources=src;recordings=rec;admissions=adm.items||adm.content||[];devices=dev;
+  sessionHistory=sessions.items||[];renderCatalog();renderImportDevices();renderHistory();updateControls();
+  log(`Loaded ${recordings.length} source recordings, ${admissions.length} admissions and ${sessionHistory.length} sessions.`);
 }
 async function health(){try{const h=await request('/health');$('health').textContent=`Backend ${h.status}`;$('health-dot').className='dot ok'}catch(e){$('health').textContent='Backend unavailable';$('health-dot').className='dot bad'}}
 async function init(){
@@ -257,6 +306,8 @@ async function init(){
 $('login-form').addEventListener('submit',async e=>{e.preventDefault();try{await post('/session',{username:$('username').value,password:$('password').value});$('password').value='';const session=await request('/session');if(!session.roles?.includes('ROLE_ADMIN'))throw new Error('Administrator role required');$('login-panel').hidden=true;$('workspace').hidden=false;notice('Signed in.');await loadCatalog()}catch(err){notice(`Sign in: ${err.message}`)}});
 $('recording').onchange=renderRecording;$('admission').onchange=renderAdmission;
 $('session').onchange=e=>chooseSession(Number(e.target.value));
+$('scenario-mode').onchange=renderScenario;
+for(const id of ['scenario-from','scenario-to','scenario-magnitude'])$(id).oninput=updateControls;
 $('import-id').oninput=updateControls;$('import-lead').onchange=updateControls;
 $('import-devices').onchange=updateControls;$('import').onclick=importRecording;
 $('create').onclick=createSession;for(const name of ['start','pause','resume','stop'])$(name).onclick=()=>action(name);

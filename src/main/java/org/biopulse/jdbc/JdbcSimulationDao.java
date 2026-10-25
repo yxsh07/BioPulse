@@ -23,20 +23,34 @@ public class JdbcSimulationDao implements SimulationDao {
               r.getLong("output_recording_id"),
               SimulatorState.valueOf(r.getString("state")),
               r.getDouble("speed"),
-              Sql.instant(r, "cursor_at"));
+              Sql.instant(r, "cursor_at"),
+              Sql.instant(r, "created_at"),
+              new ScenarioSpec(
+                  ScenarioMode.valueOf(r.getString("scenario_mode")),
+                  Sql.number(r, "scenario_from_seconds"),
+                  Sql.number(r, "scenario_to_seconds"),
+                  Sql.number(r, "scenario_magnitude")));
 
-  public SimulationSession create(long a, long r, long o, double speed, Instant at) {
+  public SimulationSession create(
+      long a, long r, long o, double speed, Instant at, ScenarioSpec scenario) {
+    ScenarioSpec spec = scenario == null ? ScenarioSpec.NORMAL : scenario;
+    Instant now = Instant.now();
     long id =
         sql.insert(
             "INSERT INTO"
-                + " simulation_sessions(admission_id,recording_id,output_recording_id,state,speed,cursor_at,updated_at)"
-                + " VALUES(?,?,?,'CREATED',?,?,?)",
+                + " simulation_sessions(admission_id,recording_id,output_recording_id,state,speed,cursor_at,created_at,updated_at,scenario_mode,scenario_from_seconds,scenario_to_seconds,scenario_magnitude)"
+                + " VALUES(?,?,?,'CREATED',?,?,?,?,?,?,?,?)",
             a,
             r,
             o,
             speed,
             at,
-            Instant.now());
+            now,
+            now,
+            spec.mode(),
+            spec.fromSeconds(),
+            spec.toSeconds(),
+            spec.magnitude());
     return get(id, false).orElseThrow();
   }
 
@@ -50,6 +64,19 @@ public class JdbcSimulationDao implements SimulationDao {
             id)
         .stream()
         .findFirst();
+  }
+
+  public List<SimulationSession> list(String actor, boolean admin, int limit, int offset) {
+    return sql.query(
+        "SELECT s.* FROM simulation_sessions s JOIN admissions a ON a.id=s.admission_id JOIN"
+            + " beds b ON b.id=a.bed_id WHERE (? OR EXISTS(SELECT 1 FROM user_wards uw JOIN users"
+            + " u ON u.id=uw.user_id WHERE uw.ward_id=b.ward_id AND u.username=?)) ORDER BY"
+            + " s.created_at DESC,s.id DESC LIMIT ? OFFSET ?",
+        mapper,
+        admin,
+        actor,
+        limit,
+        offset);
   }
 
   public List<Long> running() {

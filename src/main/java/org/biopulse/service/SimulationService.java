@@ -10,6 +10,7 @@ import org.biopulse.exception.ApiException;
 import org.biopulse.security.AccessPolicy;
 import org.biopulse.simulation.MeasurementSource;
 import org.biopulse.simulation.ReplayClock;
+import org.biopulse.simulation.bidmc.ScenarioReplay;
 import org.biopulse.websocket.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,16 +21,19 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class SimulationService {
   private final SimulationDao dao;
   private final RegistryDao registry;
+  private final ProvenanceDao provenance;
   private final MeasurementDao measurements;
   private final MeasurementSource source;
   private final MeasurementIngestionService ingestion;
   private final MonitoringEventPublisher events;
   private final AccessPolicy access;
+  private final ScenarioReplay scenarioReplay = new ScenarioReplay();
   private final Map<Long, ReplayClock> clocks = new ConcurrentHashMap<>();
 
   public SimulationService(
       SimulationDao dao,
       RegistryDao registry,
+      ProvenanceDao provenance,
       MeasurementDao measurements,
       MeasurementSource source,
       MeasurementIngestionService ingestion,
@@ -37,6 +41,7 @@ public class SimulationService {
       AccessPolicy access) {
     this.dao = dao;
     this.registry = registry;
+    this.provenance = provenance;
     this.measurements = measurements;
     this.source = source;
     this.ingestion = ingestion;
@@ -48,6 +53,10 @@ public class SimulationService {
     var s = dao.get(id, false).orElseThrow(() -> ApiException.missing("Simulation"));
     access.admission(s.admissionId());
     return s;
+  }
+
+  public List<SimulationSession> list(int limit, int offset) {
+    return dao.list(access.actor(), access.admin(), limit, offset);
   }
 
   @Transactional
@@ -64,25 +73,83 @@ public class SimulationService {
     }
     if (admission.status() != AdmissionStatus.ACTIVE)
       throw ApiException.bad("Replay requires an active admission");
+    ScenarioSpec scenario = validateScenario(r.scenario(), rec);
     for (long device : dao.recordedDeviceIds(rec.id()))
       if (!registry.assigned(r.admissionId(), device, Instant.now()))
         throw ApiException.bad(
             "Recorded device " + device + " is not assigned to the target admission");
-    var src =
-        registry.createSource(
-            new SourceCreate(
-                "Replay " + rec.name(),
+    String name =
+        fit("Replay " + rec.name() + (scenario.synthetic() ? " [" + scenario.mode() + "]" : ""), 100);
+    String sourceProvenance =
+        "Recorded playback; original recording:"
+            + rec.id()
+            + "; original source:"
+            + rec.sourceId()
+            + (scenario.synthetic()
+                ? "; synthetic scenario="
+                    + scenario.mode()
+                    + " range=["
+                    + scenario.fromSeconds()
+                    + ","
+                    + scenario.toSeconds()
+                    + ")s magnitude="
+                    + scenario.magnitude()
+                    + "; values changed only in simulated output"
+                : "");
+    long sourceId =
+        provenance.createSource(
+            new ProvenanceDao.SourceInput(
+                name,
                 SourceType.SIMULATION,
-                "Recorded playback; original recording:"
-                    + rec.id()
-                    + "; original source:"
-                    + rec.sourceId()));
-    var output =
-        registry.createRecording(
-            new RecordingCreate(src.id(), "Replay " + rec.name(), rec.startAt(), rec.endAt()));
-    var s = dao.create(r.admissionId(), rec.id(), output.id(), r.speed(), rec.startAt());
+                sourceProvenance,
+                scenario.synthetic() ? "SYNTHETIC_CLINICAL" : "MANUAL_SIMULATION",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
+    long outputId =
+        provenance.createRecording(
+            new ProvenanceDao.RecordingInput(
+                sourceId,
+                "sim:" + UUID.randomUUID(),
+                name,
+                null,
+                Long.toString(rec.id()),
+                List.of(),
+                null,
+                rec.startAt(),
+                rec.endAt()));
+    var output = registry.recording(outputId).orElseThrow();
+    var s = dao.create(r.admissionId(), rec.id(), output.id(), r.speed(), rec.startAt(), scenario);
     access.audit("CREATE_SIMULATION", "session:" + s.id());
     return s;
+  }
+
+  private static String fit(String value, int max) {
+    return value.length() <= max ? value : value.substring(0, max);
+  }
+
+  private ScenarioSpec validateScenario(ScenarioSpec requested, SourceRecording rec) {
+    ScenarioSpec scenario = requested == null ? ScenarioSpec.NORMAL : requested;
+    if (!scenario.synthetic()) return ScenarioSpec.NORMAL;
+    Double from = scenario.fromSeconds();
+    Double to = scenario.toSeconds();
+    Double magnitude = scenario.magnitude();
+    if (from == null
+        || to == null
+        || magnitude == null
+        || !Double.isFinite(from)
+        || !Double.isFinite(to)
+        || !Double.isFinite(magnitude))
+      throw ApiException.bad("Scenario range and magnitude are required");
+    double duration = Duration.between(rec.startAt(), rec.endAt()).toNanos() / 1_000_000_000.0;
+    if (from < 0 || to <= from || to > duration + 0.000001)
+      throw ApiException.bad("Scenario range must be within the recording duration");
+    if (magnitude < 0 || magnitude > 100)
+      throw ApiException.bad("Scenario magnitude must be between 0 and 100");
+    return new ScenarioSpec(scenario.mode(), from, to, magnitude);
   }
 
   @Transactional
@@ -161,13 +228,14 @@ public class SimulationService {
     var chunks = measurements.recordingWaveforms(original.id(), s.cursorAt(), to, 1001);
     if (rows.size() > 1000 || chunks.size() > 1000)
       throw ApiException.bad("Replay window too dense; reduce speed");
-    if (!rows.isEmpty())
+    var replay = scenarioReplay.apply(s, original, output, rows, chunks);
+    if (!replay.measurements().isEmpty())
       ingestion.ingest(
-          rows.stream()
+          replay.measurements().stream()
               .map(
                   m ->
                       new Observation(
-                          "sim:" + id + ":" + m.id(),
+                          m.eventId(),
                           s.admissionId(),
                           m.deviceId(),
                           m.metric(),
@@ -178,10 +246,10 @@ public class SimulationService {
                           output.id(),
                           m.quality()))
               .toList());
-    for (var c : chunks)
+    for (var c : replay.waveforms())
       ingestion.ingestWaveform(
           new Waveform(
-              "sim:" + id + ":" + c.id(),
+              c.eventId(),
               s.admissionId(),
               c.deviceId(),
               c.metric(),

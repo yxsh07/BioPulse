@@ -63,7 +63,8 @@ public final class Requests {
   public record SimulationCreate(
       @Positive long admissionId,
       @Positive long recordingId,
-      @DecimalMin("0.1") @DecimalMax("16") double speed) {}
+      @DecimalMin("0.1") @DecimalMax("16") double speed,
+      ScenarioSpec scenario) {}
 
   public record ReportCreate(
       Long admissionId, Long wardId, @NotNull Instant from, @NotNull Instant to) {}

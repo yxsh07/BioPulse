@@ -17,15 +17,21 @@ The **Import BIDMC recording** panel calls the ADMIN-only `POST /api/v1/datasets
 
 The shared replay service then reads stored source rows, writes a separate simulation source/recording that references the original, and preserves source-relative observation times. Historical import does not emit live alerts; replay goes through the normal ingestion path and does emit them.
 
+## Scenarios and session history
+
+The session panel can create a fixed scenario alongside a replay. Choose a mode (`ABNORMAL_DEMO`, `SENSOR_OFFLINE`, `MISSING_DATA`, `NOISY_SIGNAL`, or `DELAYED_TELEMETRY`), a source-relative window, and a magnitude. The backend stores the parameters with the session and applies them only to the synthetic output; the imported source is never edited. `DELAYED_TELEMETRY` records the requested delay as the scenario magnitude but does not change source timestamps. Scenario metadata is visible in the session state and history.
+
+Recent sessions are loaded from `GET /api/v1/simulation-sessions` and are server-backed; creating or opening a session refreshes the page's cache from the authoritative response. The list endpoint applies the caller's admission scope.
+
 ## Dataset source
 
 Download BIDMC CSV files from [PhysioNet](https://physionet.org/content/bidmc/1.0.0/) into a server-side directory. A recording needs matching `bidmc_##_Signals.csv`, `bidmc_##_Numerics.csv`, and `bidmc_##_Fix.txt`; `bidmc_##_Breaths.csv` is optional. Do not place source datasets in this repository. Set `BIOPULSE_BIDMC_DATASET_ROOT` to the absolute parent directory on the server; the browser never supplies a filesystem path.
 
 ## Scope and limitations
 
-Session history in this console is a local browser list because `/api/v1/simulation-sessions` currently has no list route. The server remains authoritative for each session's state. While a session is selected, vital cards follow replay WebSocket events instead of the global latest-measurement endpoint, because a historical recording's timestamps are older than current fixture data. The device panel lists visible devices, but assignment is validated server-side at import and replay time.
+Session history is server-backed, but the console requests the newest 100 sessions in one page; older sessions need direct API pagination. While a session is selected, vital cards follow replay WebSocket events instead of the global latest-measurement endpoint, because a historical recording's timestamps are older than current fixture data. The device panel lists visible devices, but assignment is validated server-side at import and replay time.
 
-There is currently no backend route to select a synthetic scenario mode, so the console does not falsely present a scenario control. `ScenarioTransformer` remains an unexposed Java-library capability pending a durable session metadata contract.
+Scenario transformations are deterministic demo behavior, not clinical simulation. `DELAYED_TELEMETRY` is metadata-only as described above. The console does not provide arbitrary CSV uploads or client-side dataset paths.
 
 ## Verification
 
