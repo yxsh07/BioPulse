@@ -67,6 +67,15 @@ Restart the backend with its usual database settings. Then, in `frontend`, run `
 
 Allow inbound TCP port 5173 through Windows Firewall only for the intended interface/address and local subnet. Some guest Wi-Fi networks isolate devices and prevent direct connections. The Wi-Fi address and exact allowed origin may need updating after reconnecting to another network. Keep `npm run dev` for computer-only access.
 
+If Chrome reports `ERR_NETWORK_CHANGED` or an old LAN link stops opening after changing Wi-Fi, obtain the current link instead of reusing the previous address:
+
+```powershell
+Get-NetIPAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 |
+  ForEach-Object { "http://$($_.IPAddress):5173/" }
+```
+
+Use that address on the other device, update the backend's exact `ALLOWED_ORIGINS` entry and any address-scoped firewall rule, and restart the backend. Both devices must be on the same current network.
+
 ## Verify
 
 ```powershell
