@@ -54,6 +54,19 @@ Open **http://127.0.0.1:5173**. Vite proxies API, WebSocket and `/simulator` tra
 
 For a bundled JAR, `scripts/build.ps1` or `scripts/build.sh` builds the frontend, runs Maven verification, copies frontend output into the JAR, and packages it. Stop a running JAR before rebuilding on Windows. Start with `java -jar target/biopulse-1.0.0.jar` using the same database environment.
 
+### Access from devices on the same Wi-Fi
+
+Before starting the backend, include the computer's exact Wi-Fi origin in `ALLOWED_ORIGINS`, preserving the local origins you use. For example, replace `YOUR_WIFI_IP` below with the IPv4 address reported by `Get-NetIPConfiguration`:
+
+```powershell
+$env:ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,http://YOUR_WIFI_IP:5173'
+$env:SERVER_ADDRESS = '127.0.0.1'
+```
+
+Restart the backend with its usual database settings. Then, in `frontend`, run `npm run dev:lan`. It binds port 5173 to the network and refuses to silently select another port. Other devices on the same network open `http://YOUR_WIFI_IP:5173/` and use their normal sign-in. API calls, authenticated WebSockets and the simulator all use this origin through Vite; port 8080 need not be opened to other devices.
+
+Allow inbound TCP port 5173 through Windows Firewall only for the intended interface/address and local subnet. Some guest Wi-Fi networks isolate devices and prevent direct connections. The Wi-Fi address and exact allowed origin may need updating after reconnecting to another network. Keep `npm run dev` for computer-only access.
+
 ## Verify
 
 ```powershell
