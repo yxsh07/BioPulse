@@ -11,7 +11,7 @@ function New-SecureHex([int]$byteCount = 32) {
   $bytes = [byte[]]::new($byteCount)
   $random = [System.Security.Cryptography.RandomNumberGenerator]::Create()
   try { $random.GetBytes($bytes) } finally { $random.Dispose() }
-  return [Convert]::ToHexString($bytes)
+  return -join ($bytes | ForEach-Object { $_.ToString('x2') })
 }
 
 function Set-DotEnvValue([string]$path, [string]$key, [string]$value) {
@@ -32,6 +32,28 @@ function Set-DotEnvValue([string]$path, [string]$key, [string]$value) {
     $content.TrimEnd("`r", "`n") + "`r`n",
     [System.Text.UTF8Encoding]::new($false)
   )
+}
+
+function Test-DockerEngine {
+  $previousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    docker info --format '{{.ServerVersion}}' *> $null
+    return $LASTEXITCODE -eq 0
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+}
+
+function Test-DockerVolume([string]$name) {
+  $previousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    docker volume inspect $name *> $null
+    return $LASTEXITCODE -eq 0
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
 }
 
 function Get-WifiConfiguration {
@@ -116,15 +138,13 @@ try {
   if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw 'Docker Desktop is not installed. Install and start Docker Desktop, then run this command again.'
   }
-  docker info *> $null
-  if ($LASTEXITCODE -ne 0) { throw 'Docker Desktop is installed but its engine is not ready. Start Docker Desktop and retry.' }
+  if (-not (Test-DockerEngine)) { throw 'Docker Desktop is open, but its Linux container engine is not ready. Wait for Docker Desktop to say it is running, then retry.' }
   Ensure-PrivateFirewallRule -Index $wifi.InterfaceIndex
   Push-Location $projectRoot
   try {
     $envPath = Join-Path $projectRoot '.env'
     $createdEnv = -not (Test-Path -LiteralPath $envPath)
-    docker volume inspect biopulse_mysql_data *> $null
-    $hadDatabaseVolume = $LASTEXITCODE -eq 0
+    $hadDatabaseVolume = Test-DockerVolume 'biopulse_mysql_data'
     if ($hadDatabaseVolume -and $createdEnv) {
       throw 'The BioPulse database volume already exists, but .env is missing. Restore the original ignored .env file before starting so the app can reconnect to MySQL without changing access to your saved data.'
     }
@@ -150,6 +170,7 @@ try {
       }
       $generatedDemoPassword = New-SecureHex
       Set-DotEnvValue $envPath 'DEMO_PASSWORD' $generatedDemoPassword
+      Set-DotEnvValue $envPath 'BIOPULSE_DEMO_PASSWORD_PENDING' 'true'
       $envText = Get-Content -LiteralPath $envPath -Raw
     }
     if ($createdEnv) {
@@ -173,6 +194,7 @@ try {
     }
     if (-not $ready) {
       docker compose -p biopulse ps
+      docker compose -p biopulse logs --tail 80 app
       throw 'BioPulse containers started, but the health endpoint did not become ready within 120 seconds.'
     }
 
@@ -182,17 +204,20 @@ try {
     Write-Host 'Share this address only with devices on your trusted private Wi-Fi.'
     Write-Host 'Keep this PC and Docker Desktop running. The MySQL database persists across restarts.'
     Write-Host 'Stop the server with: docker compose -p biopulse stop'
-    if ($generatedDemoPassword -and -not $hadDatabaseVolume) {
+    if ($envText -match '(?m)^BIOPULSE_DEMO_PASSWORD_PENDING=true\r?$') {
+      $demoPasswordLine = [regex]::Match($envText, '(?m)^DEMO_PASSWORD=([^\r\n]+)')
+      if (-not $demoPasswordLine.Success) { throw 'The generated demo password is missing from .env.' }
       Write-Host ''
       Write-Host 'First-run synthetic demo account:'
       Write-Host '  admin@biopulse.local'
-      Write-Host "  Password: $generatedDemoPassword"
+      Write-Host "  Password: $($demoPasswordLine.Groups[1].Value)"
       Write-Host 'This generated password is also saved in the ignored .env file.'
+      Set-DotEnvValue $envPath 'BIOPULSE_DEMO_PASSWORD_PENDING' 'false'
     }
   } finally {
     Pop-Location
   }
 } catch {
-  Write-Error $_
+  Write-Host "BioPulse could not start: $($_.Exception.Message)" -ForegroundColor Red
   exit 1
 }
