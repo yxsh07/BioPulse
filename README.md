@@ -54,27 +54,21 @@ Open **http://127.0.0.1:5173**. Vite proxies API, WebSocket and `/simulator` tra
 
 For a bundled JAR, `scripts/build.ps1` or `scripts/build.sh` builds the frontend, runs Maven verification, copies frontend output into the JAR, and packages it. Stop a running JAR before rebuilding on Windows. Start with `java -jar target/biopulse-1.0.0.jar` using the same database environment.
 
-### Access from devices on the same Wi-Fi
+### Host BioPulse on this PC for the same Wi-Fi
 
-Before starting the backend, include the computer's exact Wi-Fi origin in `ALLOWED_ORIGINS`, preserving the local origins you use. For example, replace `YOUR_WIFI_IP` below with the IPv4 address reported by `Get-NetIPConfiguration`:
-
-```powershell
-$env:ALLOWED_ORIGINS = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080,http://YOUR_WIFI_IP:5173'
-$env:SERVER_ADDRESS = '127.0.0.1'
-```
-
-Restart the backend with its usual database settings. Then, in `frontend`, run `npm run dev:lan`. It binds port 5173 to the network and refuses to silently select another port. Other devices on the same network open `http://YOUR_WIFI_IP:5173/` and use their normal sign-in. API calls, authenticated WebSockets and the simulator all use this origin through Vite; port 8080 need not be opened to other devices.
-
-Allow inbound TCP port 5173 through Windows Firewall only for the intended interface/address and local subnet. Some guest Wi-Fi networks isolate devices and prevent direct connections. The Wi-Fi address and exact allowed origin may need updating after reconnecting to another network. Keep `npm run dev` for computer-only access.
-
-If Chrome reports `ERR_NETWORK_CHANGED` or an old LAN link stops opening after changing Wi-Fi, obtain the current link instead of reusing the previous address:
+On Windows, install and start Docker Desktop, connect the PC to a **Private** Wi-Fi network, then run this once from the repository folder in PowerShell:
 
 ```powershell
-Get-NetIPAddress -InterfaceAlias 'Wi-Fi' -AddressFamily IPv4 |
-  ForEach-Object { "http://$($_.IPAddress):5173/" }
+powershell -ExecutionPolicy Bypass -File .\scripts\start-lan.ps1
 ```
 
-Use that address on the other device, update the backend's exact `ALLOWED_ORIGINS` entry and any address-scoped firewall rule, and restart the backend. Both devices must be on the same current network.
+The launcher creates missing local database secrets in the ignored `.env`, asks Windows for elevation once to add a firewall rule restricted to TCP 8080 from `LocalSubnet` on Private networks, builds the existing Docker image, starts MySQL and BioPulse, waits for the API health check, and prints the current Wi-Fi address. On a fresh database only, it also prints the generated synthetic admin login. Keep that password private and change it before sharing access beyond a trusted demo network.
+
+Open the printed `http://PC-WIFI-IP:8080` address on devices connected to the same network. The Java server serves the built React site and its API/WebSocket under the same origin; devices do not need port 5173 or direct database access. MySQL changes stay in the local `biopulse_mysql_data` Docker volume across restarts. Keep this PC, Docker Desktop and the Wi-Fi connection on while people use the site. Start the launcher again after reconnecting to Wi-Fi to print the new address. Stop the containers with `docker compose -p biopulse stop`; this preserves the database.
+
+The first firewall setup requires a Private Windows network profile and an elevation approval. The launcher refuses to open a LAN rule on a Public network. A guest Wi-Fi setting that isolates connected devices must be disabled in the router/access point. This is plain HTTP for a trusted local demo network; do not use it over public Wi-Fi or with real patient data. The database and API remain on the hosting PC; this does not publish BioPulse to the internet.
+
+For frontend-only development, the existing Vite `npm run dev:lan` command remains available; it is separate from this all-in-one LAN host.
 
 ## Verify
 

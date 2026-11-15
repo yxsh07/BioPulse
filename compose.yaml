@@ -16,7 +16,7 @@ services:
   app:
     build: .
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${BIOPULSE_BIND_ADDRESS:-127.0.0.1}:8080:8080"
     environment:
       DB_URL: jdbc:mysql://mysql:3306/biomedical_dashboard?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true
       DB_USER: biopulse
