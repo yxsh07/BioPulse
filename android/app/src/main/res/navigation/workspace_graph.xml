@@ -1,0 +1,26 @@
+<?xml version='1.0' encoding='utf-8'?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto" android:id="@+id/workspace_graph" app:startDestination="@id/overview_graph">
+    <navigation android:id="@+id/overview_graph" app:startDestination="@id/overview">
+        <fragment android:id="@+id/overview" android:name="org.biopulse.android.ui.OverviewFragment" android:label="overview" />
+    </navigation>
+    <navigation android:id="@+id/patients_graph" app:startDestination="@id/patient_list">
+        <fragment android:id="@+id/patient_list" android:name="org.biopulse.android.ui.PatientListFragment" android:label="patients" />
+        <fragment android:id="@+id/patient_detail" android:name="org.biopulse.android.ui.PatientDetailFragment" android:label="patient_detail">
+            <argument android:name="admissionId" app:argType="long" />
+            <deepLink app:uri="biopulse-internal://admission/{admissionId}" />
+        </fragment>
+        <fragment android:id="@+id/monitor" android:name="org.biopulse.android.ui.MonitorFragment" android:label="monitor" />
+        <fragment android:id="@+id/trends" android:name="org.biopulse.android.ui.TrendsFragment" android:label="trends" />
+        <fragment android:id="@+id/report" android:name="org.biopulse.android.ui.ReportFragment" android:label="report" />
+    </navigation>
+    <navigation android:id="@+id/alerts_graph" app:startDestination="@id/alerts">
+        <fragment android:id="@+id/alerts" android:name="org.biopulse.android.ui.AlertsFragment" android:label="alerts" />
+        <fragment android:id="@+id/alert_detail" android:name="org.biopulse.android.ui.AlertDetailFragment" android:label="alert_detail">
+            <argument android:name="eventId" app:argType="long" />
+            <deepLink app:uri="biopulse-internal://event/{eventId}" />
+        </fragment>
+    </navigation>
+    <navigation android:id="@+id/profile_graph" app:startDestination="@id/profile">
+        <fragment android:id="@+id/profile" android:name="org.biopulse.android.ui.ProfileFragment" android:label="profile" />
+    </navigation>
+</navigation>

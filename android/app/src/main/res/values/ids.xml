@@ -1,0 +1,32 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <item name="replay_picker" type="id" />
+    <item name="source_picker" type="id" />
+    <item name="speed_picker" type="id" />
+    <item name="create_replay" type="id" />
+    <item name="start_replay" type="id" />
+    <item name="pause_replay" type="id" />
+    <item name="resume_replay" type="id" />
+    <item name="stop_replay" type="id" />
+    <item name="from_input" type="id" />
+    <item name="to_input" type="id" />
+    <item name="apply_range" type="id" />
+    <item name="metric_picker" type="id" />
+    <item name="trend_chart" type="id" />
+    <item name="card_hr" type="id" />
+    <item name="card_spo2" type="id" />
+    <item name="card_rr" type="id" />
+    <item name="card_bp" type="id" />
+    <item name="card_temp" type="id" />
+    <item name="card_pulse" type="id" />
+    <item name="chart_ecg" type="id" />
+    <item name="chart_ppg" type="id" />
+    <item name="chart_resp" type="id" />
+    <item name="generate_report" type="id" />
+    <item name="save_report" type="id" />
+    <item name="share_report" type="id" />
+    <item name="sign_out" type="id" />
+    <item name="theme_picker" type="id" />
+    <item name="acknowledge_event" type="id" />
+    <item name="resolve_event" type="id" />
+</resources>

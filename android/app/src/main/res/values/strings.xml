@@ -1,0 +1,39 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BioPulse</string>
+    <string name="brand">B I O P U L S E</string>
+    <string name="research_workspace">RESEARCH WORKSPACE</string>
+    <string name="overview">Overview</string>
+    <string name="patients">Patients</string>
+    <string name="alerts">Alerts</string>
+    <string name="profile">Profile</string>
+    <string name="research_only">ACADEMIC PLATFORM / RESEARCH ONLY</string>
+    <string name="refresh">Refresh</string>
+    <string name="retry">Retry</string>
+    <string name="previous">Previous</string>
+    <string name="next">Next</string>
+    <string name="login_title">Secure access</string>
+    <string name="login_subtitle">Sign in to your monitoring workspace.</string>
+    <string name="email">Staff email</string>
+    <string name="password">Password</string>
+    <string name="sign_in">Sign in</string>
+    <string name="connection_settings">Connection settings</string>
+    <string name="server_address">Server address</string>
+    <string name="login_note">Authorized research access. Use your configured account. Passwords and session cookies are never saved to this device.</string>
+    <string name="endpoint_note">Emulator: http://10.0.2.2:8080. USB phone with ADB reverse: http://127.0.0.1:8080. Wi-Fi: computer LAN address, port 8080.</string>
+    <string name="search_patients">Search name or patient code</string>
+    <string name="all_wards">All authorized wards</string>
+    <string name="open_patient">Open patient workstation</string>
+    <string name="open_event">Open event information</string>
+    <string name="replay_session">Replay session</string>
+    <string name="metric">Metric</string>
+    <string name="from_utc">From (UTC, ISO 8601)</string>
+    <string name="to_utc">To (UTC, exclusive)</string>
+    <string name="apply_interval">Apply interval</string>
+    <string name="source_recording">Source recording</string>
+    <string name="speed">Speed</string>
+    <string name="create_replay">Create replay session</string>
+    <string name="generate_report">Generate report</string>
+    <string name="sign_out">Sign out</string>
+    <string name="up">Navigate up</string>
+</resources>

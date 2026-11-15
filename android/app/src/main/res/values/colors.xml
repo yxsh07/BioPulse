@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <color name="canvas">#F4F4F1</color>
+    <color name="panel">#FFFFFF</color>
+    <color name="raised">#ECECE6</color>
+    <color name="boundary">#C7C7BF</color>
+    <color name="primary_text">#111111</color>
+    <color name="metadata">#555550</color>
+    <color name="ecg">#246139</color>
+    <color name="ppg">#126579</color>
+    <color name="resp">#634389</color>
+    <color name="warning">#805B10</color>
+    <color name="critical">#A52B2B</color>
+</resources>
