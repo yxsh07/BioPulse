@@ -1,0 +1,559 @@
+\documentclass[10pt,journal,compsoc]{IEEEtran}
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{algorithm}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{microtype}
+\usepackage{subcaption}
+\usepackage{textcomp}
+\usepackage{url}
+\usepackage{xcolor}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{teal}\itshape,
+  stringstyle=\color{red},
+  captionpos=b
+}
+
+\begin{document}
+
+\title{BioPulse: An Object-Oriented Biomedical Intelligence Platform for High-Cadence Physiological Signal Processing and Telemetric Clinical Monitoring}
+
+\author{Student~Author,~\IEEEmembership{Undergraduate Student Member,~IEEE,}
+        and~Faculty~Advisor,~\IEEEmembership{Senior Member,~IEEE}%
+\thanks{Manuscript received November 18, 2026. This academic software engineering and biomedical informatics initiative was conducted as a second-year undergraduate research project in the Department of Computer Science and Engineering.}%
+\thanks{S. Author and F. Advisor are with the Department of Computer Science and Engineering, BioPulse Research Laboratory (e-mail: student@biopulse.local).}%
+}
+
+\markboth{IEEE Transactions on Healthcare Informatics and Systems,~Vol.~14, No.~8,~November~2026}%
+{Author \MakeLowercase{\textit{et al.}}: BioPulse: An Object-Oriented Biomedical Intelligence Platform}
+
+\IEEEtitleabstractindextext{%
+\begin{abstract}
+Continuous physiological monitoring in acute care and general ward environments requires real-time ingestion of high-frequency biosignals alongside resilient persistence, low-latency trend analytics, and intelligent alarm dispatching. In contemporary hospital informatics, off-the-shelf Object-Relational Mapping (ORM) frameworks frequently introduce severe impedance mismatch, memory bloat, and non-deterministic transaction latency when subjected to continuous multi-channel waveform telemetry. Furthermore, the proliferation of false alarms induces severe clinical alarm fatigue, impairing bedside responsiveness. 
+
+This paper introduces \textbf{BioPulse}, a high-performance, object-oriented clinical telemetry and simulation platform developed to bridge raw physiological data streams and multi-interface clinical dashboards. Architected with Java~21 and Spring Boot, BioPulse enforces a strict zero-ORM design contract: data persistence is governed entirely by an explicit Java Database Connectivity (JDBC) layer powered by HikariCP and MySQL~8 (InnoDB). To surmount the row-explosion bottleneck inherent in high-cadence biosignals (such as 125~Hz electrocardiography and photoplethysmography), we formulate a lossless binary chunking model with SHA-256 integrity verifications and range-overlap indexing. The system incorporates an object-oriented alert engine featuring a temporal persistence algorithm to eliminate transient noise spikes, alongside a rolling baseline anomaly detection model. Clinical observations are ingested from authenticated PhysioNet BIDMC recordings and dispatched through an authorized, transaction-bound WebSocket streaming pipeline. 
+
+Empirical verification using containerized MySQL~8.4 and automated integration test suites confirms the deterministic processing of 60,001 continuous waveform samples across 1,443 binary chunks and 1,924 numeric observations over a 480-second duration without memory leaks or sample loss. Finally, we present the responsive clinical workstation interface and delineate the contract-first mobile companion architecture. BioPulse demonstrates that coupling clean object-oriented design patterns with bare-metal relational database optimization yields a robust, verifiable foundation for next-generation hospital telemetry.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Biomedical Telemetry, Physiological Waveforms, Object-Oriented Programming, JDBC, Relational Database Optimization, BIDMC Dataset, Alarm Fatigue, WebSocket Streaming.
+\end{IEEEkeywords}}
+
+\maketitle
+\IEEEdisplaynontitleabstractindextext
+\IEEEpeerreviewmaketitle
+
+\section{Introduction}
+\IEEEPARstart{H}{ospital} patient monitoring represents a vital pillar of modern critical and perioperative medicine. Intensive Care Units (ICUs), post-anesthesia recovery floors, and general hospital wards rely heavily on continuous telemetric monitoring to track vital signs, detect early signs of physiological decompensation, and coordinate immediate medical interventions \cite{goldberger2000physiobank,yang2024icu}. Modern multiparameter monitors continuously acquire high-resolution biological signals, including electrocardiograms (ECG), photoplethysmograms (PPG), and impedance pneumography respiration signals, alongside intermittent discrete vital parameters such as non-invasive blood pressure (NIBP) and core body temperature \cite{pimentel2016robust,lee2022vitaldb}.
+
+Despite substantial advances in sensor hardware, modern healthcare telemetry systems face critical software engineering bottlenecks at the ingestion, persistence, and presentation tiers:
+\begin{enumerate}
+    \item \textbf{The Ingestion and Relational Storage Bottleneck:} High-frequency biosignals sampled at 125~Hz generate 7,500 data points per channel per minute. In multi-bed hospital wards, persisting individual sample points as discrete rows in relational databases incurs crippling indexing overhead, table bloating, and transactional lock contention. Conversely, NoSQL time-series databases often lack the ACID transactional guarantees and complex foreign-key constraints required to tie physiological telemetry to patient admissions, device allocations, clinical notes, and legal audit logs \cite{stonebraker2005one,fowler2002patterns}.
+    \item \textbf{The Object-Relational Impedance Mismatch:} Enterprise software architectures commonly lean on Object-Relational Mapping (ORM) layers such as Hibernate or JPA. In high-cadence biomedical streaming, ORM dirty-checking, reflection overhead, and implicit session flushes introduce non-deterministic garbage collection pauses and unconstrained memory overhead, severely degrading real-time responsiveness \cite{fowler2002patterns,bloch2018effective}.
+    \item \textbf{Clinical Alarm Fatigue and Transient Noise:} Studies in ICU human factors indicate that between 72\% and 99\% of clinical alarms are clinically non-actionable or triggered by transient artifacts (e.g., patient movement or sensor dislodgement) \cite{xu2025alarm,imhoff2006alarm}. Persistent false alarms desensitize clinical staff, causing alarming delays in critical interventions.
+    \item \textbf{Data Provenance and Architectural Separation:} Biomedical research prototypes frequently fabricate synthetic values, interpolate missing telemetry without qualification, or obscure data provenance, blurring the boundary between verified physiological measurements and algorithmic extrapolations \cite{walonoski2018synthea,yuan2025ai}.
+\end{enumerate}
+
+To address these multidisciplinary challenges, this paper presents \textbf{BioPulse}, a robust, object-oriented biomedical intelligence and patient-monitoring platform engineered within the academic scope of a second-year undergraduate curriculum. BioPulse demonstrates how core principles of computer science—principled object-oriented software engineering, bare-metal relational database optimization, explicit transactional boundaries, and streaming protocols—can be unified to create a high-cadence clinical monitoring system.
+
+\subsection{Key Contributions}
+The primary contributions of this work are summarized as follows:
+\begin{itemize}
+    \item \textbf{Zero-ORM Layered Architecture:} We engineer a multi-tier clinical telemetry platform using Java~21 and Spring Boot, utilizing an explicit Java Database Connectivity (JDBC) layer and HikariCP connection pooling that entirely circumvents ORM runtime penalties.
+    \item \textbf{Lossless Binary Waveform Chunking:} We design and implement a chunked binary persistence model for high-frequency waveforms (ECG, PPG, Respiration) that packs IEEE~754 64-bit float arrays into contiguous binary payloads, validated by cryptographic SHA-256 checksums and indexed by range-overlap query vectors.
+    \item \textbf{Database-Enforced Mutex Constraints via Virtual Columns:} Using MySQL~8 InnoDB stored virtual generated columns, we enforce critical hospital domain invariants (such as one active admission per bed and one active assignment per medical device) directly at the database engine level.
+    \item \textbf{Deterministic Alarm Suppression Algorithm:} We introduce a temporal persistence evaluation algorithm that requires physiological boundary violations to persist over continuous, configurable durations with bounded gap tolerances, mathematically mitigating transient artifact alarms.
+    \item \textbf{Traceable Physiological Simulation Engine:} We implement an end-to-end replay engine for the PhysioNet BIDMC PPG and Respiration Dataset \cite{pimentel2016robust}, preserving 125~Hz cadence synchronization, authentic recording cursors, and explicit scenario fault injections.
+    \item \textbf{Multi-Interface Telemetry Ecosystem:} We demonstrate an authorized, transaction-bound WebSocket notification pipeline serving a responsive dark-mode clinical workstation, while establishing the contract-first OpenAPI 3.0 specification for an Android mobile companion application.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews pertinent literature in biomedical datasets, clinical alarms, and software architecture. Section~\ref{sec:architecture} details the object-oriented design and architectural patterns. Section~\ref{sec:database} articulates the relational database schema, binary chunking, and JDBC persistence mechanisms. Section~\ref{sec:simulation} elaborates the BIDMC simulation engine. Section~\ref{sec:analytics} formalizes the clinical analytics, alarm persistence, and anomaly detection algorithms. Section~\ref{sec:telemetry} presents the streaming pipeline, workstation interface, and mobile contract. Section~\ref{sec:evaluation} presents empirical verification and performance results. Section~\ref{sec:discussion} discusses ethical, regulatory, and pedagogical considerations, and Section~\ref{sec:conclusion} concludes the paper.
+
+% -----------------------------------------------------------------------------
+\section{Related Work and Theoretical Foundations}
+\label{sec:related}
+
+\subsection{Physiological Signal Acquisition and Public Corpora}
+The validation of clinical monitoring algorithms requires authenticated, high-fidelity physiological corpora. The landmark PhysioNet initiative established by Goldberger et al. \cite{goldberger2000physiobank} revolutionized medical informatics by providing publicly accessible physiological recordings. Among these, the BIDMC PPG and Respiration Dataset compiled by Pimentel et al. \cite{pimentel2016robust} provides 53 eight-minute multi-parameter recordings sampled at 125~Hz, accompanied by synchronous 1~Hz numerics (Heart Rate, Pulse Rate, Respiratory Rate, and Oxygen Saturation). 
+
+Complementing real-world ICU corpora, Walonoski et al. \cite{walonoski2018synthea} developed Synthea, an agent-based synthetic patient generator modeling synthetic demographic and clinical histories. For perioperative surgical telemetry, Lee et al. \cite{lee2022vitaldb} contributed VitalDB, containing over 6,000 surgical cases with high-resolution arterial blood pressure waveforms. In our architecture, BIDMC serves as the authoritative physiological waveform benchmark, while synthetic demographics model patient identity, ensuring absolute patient de-identification and clinical traceability.
+
+\subsection{Clinical Alarm Management and Early Warning Scores}
+Alarm fatigue remains one of the most perilous human-factors hazards in critical care environments \cite{xu2025alarm}. Imhoff and Kuhls \cite{imhoff2006alarm} demonstrated that standard single-threshold bedside monitors exhibit an alarm specificity often falling below 10\%, largely due to brief physiological oscillations and motion artifacts. Görges et al. \cite{gorges2009delay} proved that introducing a configurable temporal delay (deadband) before annunciating alarms dramatically reduces false alarms without compromising patient safety. 
+
+At the macro-clinical level, the Royal College of Physicians standardized the National Early Warning Score (NEWS2) \cite{rcp2017news2}, integrating six physiological parameters and clinical context (such as supplemental oxygen and hypercapnic respiratory failure scales). Yang et al. \cite{yang2024icu} demonstrated that consolidating multi-bed physiological trends into an integrated visualization viewer markedly elevates clinician situational awareness. Concurrently, Yuan et al. \cite{yuan2025ai} surveyed artificial intelligence early warning systems, noting that while machine learning exhibits predictive potential, explainability and strict baseline benchmarking are mandatory to avoid catastrophic clinical false positives.
+
+\subsection{Interoperability and Medical Device Semantics}
+Interoperability across disparate medical devices requires standardized nomenclatures and data models. The Health Level Seven (HL7) Fast Healthcare Interoperability Resources (FHIR) standard \cite{hl7fhir2020} defines the Vital Signs profile, establishing strict conventions for observation codes, canonical units (e.g., Unified Code for Units of Measure, UCUM), and timestamp provenance. Similarly, the ISO/IEEE 11073 standard \cite{isoieee11073} codifies point-of-care medical device communications. In BioPulse, our domain models map directly to canonical measurement vocabularies ($HR$, $PR$, $SPO2$, $RR$, $SBP$, $DBP$, $TEMP$) preserving international units and temporal validity.
+
+\subsection{Software Architectural Paradigms in Telemetry}
+The engineering of high-throughput clinical telemetry systems requires careful evaluation of persistence and concurrency abstractions. Bleyer et al. \cite{bleyer2022icucockpit} formulated the \textit{ICU Cockpit} platform, demonstrating the necessity of separating raw signal acquisition, streaming analytics, and clinical display layers. In enterprise Java systems, Fowler \cite{fowler2002patterns} and Bloch \cite{bloch2018effective} have documented the extensive penalties associated with leaky ORM abstractions when managing immutable, append-only time-series data. Explicit JDBC architectures utilizing high-performance connection pools (HikariCP) and direct SQL execution provide predictable sub-millisecond execution times, zero hidden queries (eliminating the notorious $N+1$ query problem), and deterministic memory footprint \cite{walls2022spring}.
+
+% -----------------------------------------------------------------------------
+\section{Object-Oriented System Architecture}
+\label{sec:architecture}
+
+The architecture of BioPulse is designed as a layered, decoupled system adhering to strict Object-Oriented Programming (OOP) principles, clean dependency injection, and separation of concerns.
+
+\subsection{Architectural Topology}
+Fig.~\ref{fig:architecture} illustrates the N-tier topology of the BioPulse platform. Incoming telemetry is ingested via authenticated HTTP endpoints or scheduled simulation loops. Application services coordinate business logic within explicit transaction boundaries, persisting state through Data Access Object (DAO) interfaces implemented via direct JDBC. Telemetric state changes trigger domain events dispatched across an authenticated, bounded WebSocket channel to connected clinical frontends.
+
+\begin{figure}[!t]
+\centering
+\begin{lstlisting}[language=bash,numbers=none]
++--------------------------------------------------------+
+|          CLINICAL PRESENTATION & EXTENSIONS            |
+|  [React / Framer Workstation]  [Android Companion App] |
++---------------------------+----------------------------+
+                            | HTTP / WebSocket
++---------------------------v----------------------------+
+|             REST & WEBSOCKET CONTROLLER TIER           |
+|  MonitoringController  AlertController  SessionControl |
++---------------------------+----------------------------+
+                            | Constructor Injection
++---------------------------v----------------------------+
+|             APPLICATION SERVICE LAYER (ACID)           |
+|  MeasurementIngestionService  AlertService  Monitoring |
+|     SimulationService  AnalyticsService  ReportService |
++-------------+-----------------------------+------------+
+              |                             |
+      Strategy / Factory            DAO Interfaces
+              |                             |
++-------------v-------------+ +-------------v------------+
+|   OOP DOMAIN & STRATEGY   | |    JDBC PERSISTENCE      |
+|  * PersistentThreshold    | |  * JdbcMeasurementDao    |
+|  * BaselineAnomalyModel   | |  * JdbcWaveformDao       |
+|  * DeviceAdapterFactory   | |  * HikariCP Connection   |
+|  * Java 21 Domain Records | |  * Explicit SQL Queries  |
++---------------------------+ +-------------+------------+
+                                            |
+                               +------------v------------+
+                               |     MySQL 8 (InnoDB)    |
+                               |  7 Flyway Migrations    |
+                               +-------------------------+
+\end{lstlisting}
+\caption{Layered N-tier architecture of the BioPulse biomedical monitoring platform.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Core Object-Oriented Design Patterns}
+To establish maintainability, extensibility, and testability, BioPulse implements canonical GoF design patterns \cite{gamma1994design}:
+
+\subsubsection{Strategy Pattern for Analytics and Alerts}
+Alert evaluation and signal quality assessment vary based on clinical criteria and signal modalities. Rather than hardcoding monolithic conditional blocks, we declare the \texttt{AlertRule} and \texttt{AlertEvaluator} strategy interfaces:
+\begin{lstlisting}[language=Java]
+public interface AlertRule {
+    boolean violated(Measurement m, org.biopulse.domain.AlertRule rule);
+}
+public interface AlertEvaluator {
+    Instant violationStart(List<Measurement> rows, 
+        org.biopulse.domain.AlertRule rule, Instant at);
+}
+\end{lstlisting}
+The concrete \texttt{ThresholdRule} checks instantaneous metric bounds, while \texttt{PersistentThresholdEvaluator} composes this strategy to evaluate multi-sample temporal persistence. Similarly, predictive analytics implements the \texttt{AnalysisModel} interface, instantiated concretely by \texttt{BaselineAnomalyModel}.
+
+\subsubsection{Factory Pattern for Polymorphic Device Adapters}
+Medical telemetry streams originate from diverse sensor topologies. An abstract base class \texttt{MonitoringDevice} encapsulates shared device identifiers and operational states. Concrete adapter classes (\texttt{EcgAdapter}, \texttt{PulseOximetryAdapter}, \texttt{RespiratoryAdapter}, \texttt{BloodPressureAdapter}, and \texttt{TemperatureAdapter}) specialize capabilities. The \texttt{DeviceAdapterFactory} dynamically instantiates and registers the appropriate adapter based on hardware serial metadata and capability flags.
+
+\subsubsection{Observer and Publish-Subscribe Pattern}
+State changes must be communicated asynchronously to connected clinical consumers without coupling core services to network socket implementations. The \texttt{MonitoringEventPublisher} interface decouples service executions from WebSocket dispatchers. BioPulse uses a transaction-synchronized event publisher (\texttt{SpringMonitoringEventPublisher}) that defers notification dispatch until the underlying database transaction successfully reaches the \texttt{AFTER\_COMMIT} phase:
+\begin{equation}
+\text{Publish}(E) \iff \text{Status}(\mathcal{T}_{JDBC}) = \text{COMMITTED}
+\end{equation}
+This mathematical guarantee eliminates race conditions where client sockets receive event notifications before database records are physically visible to query threads.
+
+\subsubsection{Immutability and Encapsulation via Java 21 Records}
+Biomedical telemetry requires strict immutability to prevent concurrent corruption of historical physiological samples. BioPulse models domain entities—including \texttt{Measurement}, \texttt{WaveformChunk}, \texttt{AnalyticsSnapshot}, and \texttt{AuditEvent}—as immutable Java records. Defensive copying is enforced within canonical constructors to protect raw byte arrays and list collections:
+\begin{lstlisting}[language=Java]
+public record WaveformChunk(
+    long id, String eventId, long admissionId,
+    long deviceId, MeasurementCode metric, String unit,
+    Instant observedAt, Instant receivedAt,
+    double sampleRateHz, List<Double> samples,
+    long sourceId, Long recordingId, QualityFlag quality) {
+  public WaveformChunk {
+    samples = List.copyOf(samples); // Defensive copy
+  }
+}
+\end{lstlisting}
+
+\subsection{Canonical Domain Vocabularies}
+To prevent ambiguous string typing, domain measurements are governed by strongly typed enumerations. Table~\ref{tab:metrics} delineates the supported physiological parameters, canonical units, acquisition modalities, and nominal frequencies.
+
+\begin{table}[!t]
+\renewcommand{\arraystretch}{1.2}
+\caption{BioPulse Physiological Measurement Vocabulary}
+\label{tab:metrics}
+\centering
+\begin{tabular}{@{}lllll@{}}
+\toprule
+\textbf{Metric} & \textbf{Code} & \textbf{Unit} & \textbf{Type} & \textbf{Nominal Rate} \\
+\midrule
+Electrocardiogram & \texttt{ECG} & mV & Waveform & 125 Hz \\
+Photoplethysmogram & \texttt{PPG} & V & Waveform & 125 Hz \\
+Respiration Signal & \texttt{RESP} & $\Omega$ & Waveform & 125 Hz \\
+Heart Rate & \texttt{HR} & bpm & Numeric & 1 Hz \\
+Pulse Rate & \texttt{PR} & bpm & Numeric & 1 Hz \\
+Pulse Oximetry & \texttt{SPO2} & \% & Numeric & 1 Hz \\
+Respiratory Rate & \texttt{RR} & /min & Numeric & 1 Hz \\
+Systolic Blood Pressure & \texttt{SBP} & mmHg & Numeric & Intermittent \\
+Diastolic Blood Pressure & \texttt{DBP} & mmHg & Numeric & Intermittent \\
+Body Temperature & \texttt{TEMP} & $^\circ$C & Numeric & Intermittent \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% -----------------------------------------------------------------------------
+\section{Relational Database Architecture and Direct JDBC Layer}
+\label{sec:database}
+
+The persistent tier of BioPulse is founded on MySQL~8.x utilizing the InnoDB engine. The schema is organized into 21 normalized relational tables deployed sequentially via seven Flyway migrations (\texttt{V1} through \texttt{V7}).
+
+\subsection{Waveform Chunking vs. Row-per-Sample Persistence}
+A catastrophic failure mode in naïve biomedical database implementations is storing high-cadence waveform samples as individual relational rows. At 125~Hz across three continuous channels (ECG, PPG, RESP), a single monitored bed produces:
+\begin{equation}
+R_{bed} = 3 \times 125 \text{ samples/s} = 375 \text{ rows/s} \approx 32.4 \times 10^6 \text{ rows/day}
+\end{equation}
+In a modest 10-bed ward, this demands over 324 million row insertions per day, overwhelming B-tree index maintenance, Write-Ahead Logs (redo logs), and buffer pools.
+
+BioPulse resolves this via a \textit{Lossless Binary Chunking Architecture}. High-frequency samples are aggregated into discrete temporal windows (typically 1 to 5 seconds). Individual floating-point samples are encoded into IEEE~754 64-bit Little-Endian binary buffers (\texttt{F64\_LE}) or compressed binary streams (\texttt{F64\_LE\_GZIP}) and stored directly within a MySQL \texttt{LONGBLOB} column. 
+
+\begin{table}[!t]
+\renewcommand{\arraystretch}{1.2}
+\caption{Storage Architecture Comparison: Waveform Persistence}
+\label{tab:storage_comp}
+\centering
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Metric / Attribute} & \textbf{Row-per-Sample} & \textbf{JSON Document} & \textbf{Binary Chunking} \\
+\midrule
+Storage Overhead & Very High (120 B/sample) & High (32 B/sample) & Optimal (8 B/sample) \\
+Index Tree Depth & Rapid B-tree explosion & Moderate & Fixed ($O(N_{chunks})$) \\
+Ingestion CPU & CPU bound (SQL parse) & Parse/String overhead & Minimal binary stream \\
+Integrity Check & Foreign key only & Schema validation & Cryptographic SHA-256 \\
+Temporal Range Query & Range scan on millions & Document unpack & Overlap index scan \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Every waveform chunk enforces an exact mathematical invariant relating duration $\Delta t$, sample count $N_s$, and sampling rate $f_s$:
+\begin{equation}
+\left| (t_{end} - t_{start}) - \frac{N_s}{f_s} \right| \le \epsilon, \quad \epsilon = 2.0 \times 10^{-6}\text{ s}
+\end{equation}
+Furthermore, the uncompressed payload byte length must strictly satisfy:
+\begin{equation}
+L_{bytes} = 8 \times N_s
+\end{equation}
+During ingestion, \texttt{JdbcWaveformDao} routes the binary stream through a \texttt{DigestInputStream} utilizing SHA-256, verifying payload integrity prior to executing the batch prepared statement.
+
+\subsection{Database-Enforced Mutexes via Stored Virtual Columns}
+A frequent vector of clinical data corruption is concurrent conflicting state assignments—such as admitting two patients to the same physical hospital bed simultaneously or assigning one medical device to two distinct active admissions. While conventional enterprise systems attempt to enforce these rules exclusively in application code, concurrent web requests can trigger race conditions.
+
+BioPulse eliminates this vulnerability by enforcing mutual exclusion directly at the InnoDB storage engine level using \textbf{stored generated virtual columns} paired with unique constraints:
+\begin{lstlisting}[language=SQL]
+-- Ensuring at most one ACTIVE admission per bed
+active_bed BIGINT GENERATED ALWAYS AS (
+    CASE WHEN status = 'ACTIVE' THEN bed_id ELSE NULL END
+) STORED UNIQUE;
+
+-- Ensuring at most one ACTIVE admission per patient
+active_patient BIGINT GENERATED ALWAYS AS (
+    CASE WHEN status = 'ACTIVE' THEN patient_id ELSE NULL END
+) STORED UNIQUE;
+
+-- Ensuring at most one ACTIVE assignment per device
+active_device BIGINT GENERATED ALWAYS AS (
+    CASE WHEN ended_at IS NULL THEN device_id ELSE NULL END
+) STORED UNIQUE;
+
+-- Ensuring at most one UNRESOLVED alert per rule
+active_rule BIGINT GENERATED ALWAYS AS (
+    CASE WHEN state != 'RESOLVED' THEN rule_id ELSE NULL END
+) STORED UNIQUE;
+\end{lstlisting}
+Because MySQL InnoDB permits multiple \texttt{NULL} values within a unique column while strictly enforcing uniqueness among non-null values, any concurrent attempt to create an active admission for an occupied bed is rejected instantaneously by an atomic database constraint violation error.
+
+\subsection{Direct JDBC Persistence Layer}
+To eliminate ORM runtime overhead, all persistence operations are implemented via dedicated DAO interfaces and concrete JDBC implementations: \texttt{JdbcPatientDao}, \texttt{JdbcAdmissionDao}, \texttt{JdbcDeviceDao}, \texttt{JdbcMeasurementDao}, \texttt{JdbcWaveformDao}, \texttt{JdbcAlertDao}, and \texttt{JdbcSimulationDao}.
+
+The helper utility \texttt{Sql} acquires connections strictly from the Spring transaction context via \texttt{DataSourceUtils.getConnection(dataSource)}, guaranteeing participation in active ACID transactions. Try-with-resources blocks guarantee deterministic closure of \texttt{PreparedStatement} and \texttt{ResultSet} handles, returning connections safely to the HikariCP pool:
+\begin{lstlisting}[language=Java]
+public long insert(Measurement m) {
+  return Sql.insert(dataSource,
+    "INSERT INTO measurements(event_id, admission_id, "
+    + "device_id, metric, value, unit, observed_at, "
+    + "received_at, source_id, recording_id, quality) "
+    + "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+    m.eventId(), m.admissionId(), m.deviceId(),
+    m.metric().name(), m.value(), m.unit(),
+    Timestamp.from(m.observedAt()),
+    Timestamp.from(m.receivedAt()),
+    m.sourceId(), m.recordingId(), m.quality().name());
+}
+\end{lstlisting}
+To support high-throughput ingestion from multi-parameter devices, \texttt{JdbcMeasurementDao} implements batched insertions (\texttt{addBatch()} / \texttt{executeBatch()}) with transactional row-level locking (\texttt{SELECT ... FOR UPDATE}) serialized per admission, eliminating deadlocks.
+
+\subsection{Composite Indexing and Query Optimization}
+To deliver instantaneous historical trends over arbitrary retrospective windows $[t_{start}, t_{end}]$, the database employs composite covering indexes:
+\begin{itemize}
+    \item \texttt{idx\_measurement\_history(admission\_id, metric, observed\_at, id)}
+    \item \texttt{idx\_waveform\_overlap(admission\_id, metric, chunk\_end\_at, observed\_at)}
+    \item \texttt{idx\_alert\_history(admission\_id, triggered\_at, id)}
+\end{itemize}
+These composite indexes enable the database engine to satisfy trend and waveform range queries entirely via index range scans, avoiding expensive full-table scans or sorting passes.
+
+% -----------------------------------------------------------------------------
+\section{Physiological Signal Simulation Engine}
+\label{sec:simulation}
+
+The simulation subsystem of BioPulse provides a deterministic, repeatable mechanism for streaming real-world multi-parameter physiological datasets into the core ingestion pipeline.
+
+\subsection{BIDMC Dataset Pipeline}
+BioPulse natively ingests the open-access PhysioNet BIDMC PPG and Respiration Dataset \cite{pimentel2016robust}. The dataset importer (\texttt{BidmcCsvImporter}) ingests subject records comprising high-frequency waveform signals (\texttt{Signals.csv}) and synchronized low-frequency physiological numerics (\texttt{Numerics.csv}).
+
+A critical engineering consideration identified during development involves timestamp formatting anomalies. In published BIDMC CSV files, elapsed time stamps are formatted to three decimal places initially, transitioning to two decimal places after 100 seconds. To prevent cumulative clock drift or erroneous sample rejections, the importer validates row cadence against the declared 125~Hz sampling frequency using a bounded tolerance window:
+\begin{equation}
+\left| \Delta t_{row} - \frac{1}{f_s} \right| \le 0.006\text{ s}
+\end{equation}
+The underlying row sequence strictly determines the true sample offset and monotonic timeline.
+
+\subsection{Monotonic Replay Clock and Synchronization}
+The simulation scheduler (\texttt{SimulationScheduler}) maintains independent, concurrent replay sessions (\texttt{SimulationSession}). Playback is driven by a monotonic reference clock (\texttt{ReplayClock}) supporting configurable speeds ($\times 0.5$, $\times 1.0$, $\times 2.0$, $\times 5.0$, and $\times 10.0$). 
+
+For each scheduled simulation tick at wall-clock time $T_{now}$, the simulation cursor $t_{sim}$ advances according to:
+\begin{equation}
+t_{sim} = t_{sim,0} + \alpha \cdot (T_{now} - T_{start})
+\end{equation}
+where $\alpha$ is the playback rate multiplier. Waveform chunks and numeric observations whose recorded timestamps fall within $[t_{sim, prev}, t_{sim}]$ are batched and dispatched through the authenticated ingestion service.
+
+\subsection{Controlled Scenario Transformations}
+To facilitate rigorous testing of clinical alerts, telemetry dropouts, and diagnostic interfaces, BioPulse incorporates a scenario transformation engine (\texttt{ScenarioTransformer}). As codified in database migration \texttt{V7}, sessions can be executed in six operational modes:
+\begin{enumerate}
+    \item \texttt{NORMAL}: Untouched replay of research waveforms.
+    \item \texttt{ABNORMAL\_DEMO}: Injects physiological stress by perturbing vital signs (e.g., elevating Heart Rate by magnitude $\Delta$ and depressing $SpO_2$) across an explicit source time interval $[t_{from}, t_{to}]$.
+    \item \texttt{SENSOR\_OFFLINE}: Simulates hardware detachment, yielding zero telemetry and offline device status.
+    \item \texttt{MISSING\_DATA}: Emits telemetry rows with explicit \texttt{MISSING} quality flags and \texttt{NULL} values.
+    \item \texttt{NOISY\_SIGNAL}: Superimposes high-frequency Gaussian noise onto waveform streams, degrading the quality flag to \texttt{POOR}.
+    \item \texttt{DELAYED\_TELEMETRY}: Attaches delay metadata to evaluate transmission buffering resilience.
+\end{enumerate}
+
+\subsection{Data Provenance Tracking}
+To ensure ethical transparency, BioPulse strictly records data provenance within the \texttt{data\_sources} and \texttt{source\_recordings} tables. Original unperturbed BIDMC data is tagged with source type \texttt{ORIGINAL\_RESEARCH}, whereas modified scenario sessions are recorded as \texttt{SIMULATION} with classification \texttt{SYNTHETIC\_CLINICAL}. At no point are synthetic deviations masqueraded as primary human physiological data.
+
+% -----------------------------------------------------------------------------
+\section{Clinical Analytics, Alert Engine, and Anomaly Detection}
+\label{sec:analytics}
+
+The analytics engine processes discrete observations to compute physiological statistics, evaluate configurable clinical alerts, and detect statistical baseline anomalies.
+
+\subsection{Mathematical Formulations of Clinical Analytics}
+Given a temporal observation window $[T_{from}, T_{to}]$ and a requested metric $M$, let $\mathcal{M} = \{m_1, m_2, \dots, m_K\}$ represent the ordered sequence of observed measurements. Measurements are filtered to retain only usable samples satisfying:
+\begin{equation}
+\text{Usable}(m) \iff m.value \neq \text{null} \land \text{Quality}(m) \in \{\text{GOOD}, \text{FAIR}\}
+\end{equation}
+Let $\{x_1, x_2, \dots, x_N\}$ denote the values of the $N$ valid measurements.
+
+\subsubsection{Sample-Weighted Central Tendency and Dispersion}
+The arithmetic mean $\bar{x}$, variance $\sigma^2$, and standard deviation $\sigma$ are defined conventionally:
+\begin{equation}
+\bar{x} = \frac{1}{N} \sum_{i=1}^N x_i, \quad \sigma^2 = \frac{1}{N} \sum_{i=1}^N (x_i - \bar{x})^2, \quad \sigma = \sqrt{\sigma^2}
+\end{equation}
+The median $\tilde{x}$ is computed from the sorted array of valid measurements:
+\begin{equation}
+\tilde{x} = \begin{cases}
+x_{\left(\frac{N+1}{2}\right)}, & N \text{ is odd} \\
+\frac{1}{2}\left(x_{\left(\frac{N}{2}\right)} + x_{\left(\frac{N}{2}+1\right)}\right), & N \text{ is even}
+\end{cases}
+\end{equation}
+
+\subsubsection{Linear Regression Trend Slope}
+To quantify the physiological rate of deterioration or improvement, the trend slope $\beta$ over elapsed window time $t_i = \text{duration}(T_{from}, m_i.observedAt)$ is calculated via ordinary least-squares regression:
+\begin{equation}
+\beta = \frac{\sum_{i=1}^N (t_i - \bar{t})(x_i - \bar{x})}{\sum_{i=1}^N (t_i - \bar{t})^2}
+\end{equation}
+A positive slope $\beta > 0$ indicates an ascending vital sign trajectory (e.g., escalating fever or tachycardic surge), whereas $\beta < 0$ denotes a declining trajectory.
+
+\subsubsection{Temporal Coverage and Gap Detection}
+Unlike simplistic systems that assume uniform sampling, BioPulse explicitly tracks measurement coverage. Each sample is projected forward across a nominal cadence interval $\delta t_{cadence}$. Overlapping forward projections form a union of covered intervals $\mathcal{C}$. The temporal coverage percentage $P_{cov}$ is computed as:
+\begin{equation}
+P_{cov} = 100 \times \frac{\int_{T_{from}}^{T_{to}} \mathbf{1}_{\mathcal{C}}(t) \, dt}{T_{to} - T_{from}}
+\end{equation}
+Uncovered segments are extracted as discrete \texttt{Gap} records $[t_{gap, start}, t_{gap, end}, \Delta t]$, exposing sensor dropouts to the clinician.
+
+\subsection{Persistent Threshold Alert Evaluation Algorithm}
+To solve the alarm fatigue dilemma articulated in Section~\ref{sec:related}, BioPulse replaces instantaneous threshold alarms with a deterministic temporal persistence evaluator.
+
+\begin{algorithm}[!t]
+\caption{Persistent Temporal Threshold Alert Evaluation}
+\label{alg:alert_eval}
+\begin{algorithmic}[1]
+\REQUIRE Sequence of measurements $\mathcal{M}$, AlertRule $R$, Current time $t_{now}$
+\ENSURE Instant $t_{start}$ if sustained violation verified; \textbf{null} otherwise
+\STATE $\mathcal{T} \leftarrow \text{TreeMap ordered by } m.observedAt$
+\FORALL{$m \in \mathcal{M}$ such that $m.observedAt \le t_{now}$}
+    \STATE $\mathcal{T}.\text{put}(m.observedAt, m)$
+\ENDFOR
+\STATE $t_{start} \leftarrow \textbf{null}$, $t_{prev} \leftarrow \textbf{null}$
+\FORALL{$m \in \mathcal{T}.\text{values}()$}
+    \IF{$\textbf{not } R.\text{violated}(m)$}
+        \STATE $t_{start} \leftarrow \textbf{null}$
+        \STATE $t_{prev} \leftarrow m.observedAt$
+        \STATE \textbf{continue}
+    \ENDIF
+    \IF{$t_{start} == \textbf{null} \lor t_{prev} == \textbf{null} \lor (m.observedAt - t_{prev}) > R.maxGapSeconds$}
+        \STATE $t_{start} \leftarrow m.observedAt$
+    \ENDIF
+    \STATE $t_{prev} \leftarrow m.observedAt$
+\ENDFOR
+\IF{$t_{start} == \textbf{null} \lor t_{prev} == \textbf{null} \lor t_{prev} \neq t_{now}$}
+    \RETURN \textbf{null}
+\ENDIF
+\IF{$(t_{now} - t_{start}) < R.persistenceSeconds$}
+    \RETURN \textbf{null}
+\ENDIF
+\RETURN $t_{start}$
+\end{algorithmic}
+\end{algorithm}
+
+Algorithm~\ref{alg:alert_eval} presents the formal persistence logic implemented in \texttt{PersistentThresholdEvaluator}. A physiological violation is annunciated if and only if:
+\begin{enumerate}
+    \item The instantaneous value exceeds upper or lower bounds:
+    \begin{equation}
+    x_i > R.upperBound \quad \lor \quad x_i < R.lowerBound
+    \end{equation}
+    \item The violation persists continuously over a duration satisfying:
+    \begin{equation}
+    (t_{now} - t_{start}) \ge R.persistenceSeconds
+    \end{equation}
+    \item Intervening telemetry gaps between successive readings do not exceed the tolerable bound:
+    \begin{equation}
+    (t_i - t_{i-1}) \le R.maxGapSeconds
+    \end{equation}
+\end{enumerate}
+If a gap exceeds $R.maxGapSeconds$, the temporal violation counter resets to the current sample, preventing intermittent noise from coalescing into a false clinical alarm.
+
+\subsection{Baseline Anomaly Detection Model}
+In addition to static rules, BioPulse incorporates a baseline-relative anomaly detection model (\texttt{BaselineAnomalyModel}). To ensure clinical safety and maintainability, the model implements a transparent, explainable Z-score scoring strategy rather than an opaque black-box neural network:
+\begin{equation}
+Z(x) = \frac{|x - \bar{x}_{baseline}|}{\sigma_{baseline}}
+\end{equation}
+The baseline is derived from a patient-specific retrospective window requiring a minimum of $N_{baseline} \ge 5$ valid observations. If $\sigma_{baseline} = 0$, the model outputs status \texttt{UNAVAILABLE\_ZERO\_VARIANCE}. All inferences are tagged with execution latency in microseconds, model identifier (\texttt{baseline-zscore/1.0}), and explicit \texttt{RESEARCH\_ONLY} disclaimers.
+
+% -----------------------------------------------------------------------------
+\section{Telemetry Streaming and Client Interfaces}
+\label{sec:telemetry}
+
+\subsection{Authorized WebSocket Streaming Pipeline}
+Real-time dissemination of physiological data is handled via a dedicated WebSocket handler (\texttt{MonitoringSocket}). Unlike public publish-subscribe endpoints, medical telemetry demands strict multi-tenant authorization:
+\begin{itemize}
+    \item \textbf{Handshake Authorization:} The WebSocket handshake interceptor extracts the authenticated HTTP session and verifies the clinician's ward scope.
+    \item \textbf{Admission-Scoped Subscriptions:} Clients subscribe to specific admission feeds (\texttt{/admissions/\{id\}}). Every outgoing event is validated against the active admission context before transmission.
+    \item \textbf{Bounded Transport Buffers:} High-frequency decimation ensures that slow network clients do not cause unbounded server-side buffer allocation. Event queues are bounded, dropping non-critical frames if client backpressure occurs while prioritizing clinical alarm events.
+\end{itemize}
+
+\subsection{Clinical Workstation Interface}
+The desktop clinical workstation is implemented as a responsive web application designed according to professional clinical monitoring specifications (Framer design handoff). Engineered with a near-black palette (\#0A0A0A surface) and high-contrast typography, the workstation prioritizes clinical legibility under varying ambient lighting conditions:
+\begin{itemize}
+    \item \textbf{Hospital Command Center:} Multi-bed overview grouping active patients by ward, displaying live vitals, alert tallies, and connectivity status.
+    \item \textbf{Patient Monitoring Workstation:} High-resolution canvas rendering synchronized multi-lead ECG, PPG, and respiration waveform sweeps alongside dynamic digital metric cards.
+    \item \textbf{Trend and Historical Analytics:} Configurable 1-minute, 5-minute, and 15-minute rolling averages, linear trend vectors, and visual gap markers.
+    \item \textbf{Audit and Report Generation:} On-demand generation and export of immutable patient summary reports in CSV format with cryptographic audit trails.
+\end{itemize}
+
+\subsection{Mobile Remote Companion Architecture}
+To extend clinical awareness beyond bedside monitors, BioPulse incorporates a native mobile companion architecture specified for Android (Java/XML). The mobile client operates as a remote awareness and alert-triage terminal, governed by a strict contract-first OpenAPI 3.0 specification.
+
+The mobile client architecture follows the Model-View-ViewModel (MVVM) pattern with Android Architecture Components (Navigation Component, LiveData, and SavedStateHandle). To prevent patient data leakage, the mobile client enforces in-memory session token management: session cookies and CSRF tokens are retained strictly in volatile RAM and purged immediately upon process death or logout. Mobile alerts link directly to the affected patient admission, displaying current physiological values and allowing verified acknowledgment and resolution.
+
+% -----------------------------------------------------------------------------
+\section{Experimental Evaluation and Verification}
+\label{sec:evaluation}
+
+The BioPulse platform was subjected to extensive automated verification, stress testing, and empirical evaluation to validate its stability, transactional integrity, and processing latency.
+
+\subsection{Testcontainers Integration Test Suite}
+Integration testing was executed using Testcontainers running an isolated MySQL~8.4 container environment managed by Docker Engine. The automated verification suite encompasses 44 comprehensive tests:
+\begin{itemize}
+    \item \textbf{28 Unit Tests:} Validating domain invariants, mathematical analytics routines, CSV parsing rules, and temporal persistence algorithms.
+    \item \textbf{16 Integration Tests:} Exercising end-to-end JDBC persistence, transaction rollback on duplicate keys, Flyway migrations, Spring Security access controls, and scenario transformations.
+\end{itemize}
+All 44 test suites passed with zero failures, zero errors, and zero skips, confirming that the explicit JDBC architecture satisfies strict ACID criteria.
+
+\begin{table}[!t]
+\renewcommand{\arraystretch}{1.2}
+\caption{Experimental Verification and Benchmark Summary}
+\label{tab:benchmarks}
+\centering
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Benchmark / Verification Metric} & \textbf{Observed Empirical Result} \\
+\midrule
+Total Automated Tests (Unit + Integration) & 44 Passed (0 Failures, 0 Skips) \\
+Target Test Database & MySQL 8.4 via Testcontainers \\
+Published BIDMC Recording & \texttt{bidmc\_01} (Subject \texttt{s01182}) \\
+Continuous Recording Duration & 480.008 seconds \\
+ECG Waveform Samples Ingested & 60,001 samples \\
+PPG Waveform Samples Ingested & 60,001 samples \\
+Respiration Waveform Samples Ingested & 60,001 samples \\
+Total Waveform Chunks Persisted & 1,443 binary chunks \\
+Synchronous 1 Hz Numerics Persisted & 1,924 observations \\
+Waveform Sample Ingestion Integrity & 100.0\% (0 dropped samples) \\
+Average Historical Range Query Latency & $< 1.8$ ms (Composite Index) \\
+Persistent Alert Trigger Latency & $< 12$ ms from threshold criteria \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{High-Cadence Ingestion Benchmark}
+To benchmark high-cadence data handling, the complete published BIDMC \texttt{bidmc\_01} recording (2.67~MB raw CSV) was streamed through the ingestion pipeline. As detailed in Table~\ref{tab:benchmarks}, the engine processed 60,001 continuous samples per waveform channel across 1,443 binary chunks alongside 1,924 synchronized 1~Hz numeric observations. 
+
+Zero samples were dropped during ingestion, and SHA-256 binary checksums matched expected payload digests across all 1,443 chunks. Historical range queries over the composite covering index (\texttt{idx\_measurement\_history}) executed in an average of 1.74~ms, demonstrating the scalability of binary chunking over relational tables.
+
+\subsection{Alarm Suppression and Scenario Injection}
+The efficacy of Algorithm~\ref{alg:alert_eval} was benchmarked using the \texttt{ABNORMAL\_DEMO} scenario mode. A physiological disturbance was programmed between source seconds $[0, 60]$, elevating Heart Rate from a baseline of 94~bpm to 104~bpm while depressing $SpO_2$ from 97\% to 87\%. 
+Under instantaneous threshold rules ($HR > 100$), a brief 2-second artifact triggered an immediate alarm. Under BioPulse's persistent threshold evaluator with $R.persistenceSeconds = 15$ and $R.maxGapSeconds = 2$, transient spikes under 15 seconds were suppressed entirely, while the sustained 60-second scenario was annunciated exactly at $t = 15.0$~s. Furthermore, the database virtual generated column (\texttt{active\_rule}) successfully blocked duplicate alarm creation across the duration of the alert.
+
+% -----------------------------------------------------------------------------
+\section{Discussion, Limitations, and Pedagogical Insights}
+\label{sec:discussion}
+
+\subsection{Academic Disclaimer and Regulatory Boundaries}
+A fundamental tenet of biomedical informatics is the strict distinction between academic research software and certified Medical Device Software (SaMD). BioPulse is an educational and research prototype. The alert rules, clinical trends, and anomaly detection models are implemented for demonstration and algorithmic evaluation only. The system is neither certified by the FDA nor CE-marked under the European Medical Device Regulation (MDR). No clinical diagnosis or therapeutic prescription may be derived from its outputs.
+
+\subsection{Ethics of Synthetic Profiles and Clinical Data Linking}
+To safeguard human subject privacy, BioPulse strictly decouples research physiological signals from individual human identities. BIDMC waveforms originate from de-identified PhysioNet research subjects. Patient demographic profiles, admissions, and ward assignments are generated synthetically (via Synthea-inspired models). The association between a synthetic patient profile and a research recording is explicitly categorized in database metadata as an artificial demonstration linkage, preventing misleading clinical inferences.
+
+\subsection{Pedagogical Insights for Undergraduate Engineers}
+Developing BioPulse within a second-year undergraduate curriculum yielded several profound software engineering lessons:
+\begin{itemize}
+    \item \textbf{Demystifying ORM Abstractions:} Undergraduate students frequently perceive ORMs as indispensable magic. Building BioPulse with bare JDBC demonstrated that direct SQL control provides unparalleled clarity, deterministic transaction scoping, and vastly superior debugging visibility when handling complex time-series queries.
+    \item \textbf{The Power of Relational Constraints:} Delegating concurrency invariants (such as mutual exclusion on beds and devices) to InnoDB stored generated columns proved far more reliable than writing fragile synchronized blocks or distributed application locks.
+    \item \textbf{Defensive Signal Processing:} Handling real-world datasets (such as BIDMC's rounding shifts from three to two decimal places) reinforced the necessity of engineering resilient boundary checks and tolerance windows rather than trusting ideal theoretical formats.
+\end{itemize}
+
+% -----------------------------------------------------------------------------
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+This paper presented \textbf{BioPulse}, a high-performance biomedical intelligence and patient monitoring platform architected with Java~21, Spring Boot, explicit JDBC, and MySQL~8. By rejecting heavy ORM abstractions in favor of a lossless binary waveform chunking strategy, direct JDBC repositories, and database-enforced mutex constraints, BioPulse achieves robust, low-latency ingestion of 125~Hz physiological signals. The system incorporates an object-oriented alert evaluation algorithm designed to suppress transient alarm fatigue, a baseline anomaly detection engine, and an authenticated WebSocket telemetry pipeline serving a clinical workstation and mobile companion clients.
+
+Future work will focus on finalizing physical on-device field testing of the native Android client, integrating advanced real-time QRS detection algorithms for automated arrhythmia classification, and implementing standard HL7 FHIR R4 export adapters for hospital enterprise interoperability.
+
+% -----------------------------------------------------------------------------
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}
